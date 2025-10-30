@@ -1,6 +1,7 @@
 import React, { createContext, useState, useCallback, useRef, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Trip, TripStatus, RoutePoint, LocationData } from '../types';
+import { db } from '../services/DatabaseService';
 
 const TRIP_HISTORY_KEY = '@speedometer_trip_history';
 const MAX_HISTORY_ITEMS = 50;
@@ -32,11 +33,26 @@ export function TripProvider({ children }: TripProviderProps) {
   const [currentTrip, setCurrentTrip] = useState<Trip | null>(null);
   const [tripHistory, setTripHistory] = useState<Trip[]>([]);
   const [isTracking, setIsTracking] = useState(false);
+  const [isDbReady, setIsDbReady] = useState(false);
 
   const previousLocationRef = useRef<LocationData | null>(null);
   const pausedDurationRef = useRef<number>(0);
   const pauseStartTimeRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    const initDB = async () => {
+      try {
+        await db.initialize();
+        console.log('Database initialized successfully');
+        setIsDbReady(true);
+      } catch (error) {
+        console.error('Failed to initialize database:', error);
+        setIsDbReady(true); 
+      }
+    };
+
+    initDB();
+  }, []);
   const calculateDistance = useCallback(
     (lat1: number, lon1: number, lat2: number, lon2: number): number => {
       const R = 6371e3;
@@ -119,6 +135,7 @@ export function TripProvider({ children }: TripProviderProps) {
     if (!currentTrip) return;
 
     const now = Date.now();
+
     const finalTrip: Trip = {
       ...currentTrip,
       status: 'stopped' as TripStatus,
@@ -130,15 +147,21 @@ export function TripProvider({ children }: TripProviderProps) {
     };
 
     try {
-      const history = await AsyncStorage.getItem(TRIP_HISTORY_KEY);
-      const historyArray: Trip[] = history ? JSON.parse(history) : [];
-
-      const updatedHistory = [finalTrip, ...historyArray].slice(0, MAX_HISTORY_ITEMS);
-
-      await AsyncStorage.setItem(TRIP_HISTORY_KEY, JSON.stringify(updatedHistory));
-      setTripHistory(updatedHistory);
+      await db.saveTrip(finalTrip);
+      console.log('Trip saved to database:', finalTrip.id);
+      await loadTripHistory();
     } catch (error) {
-      console.error('Failed to save trip to history:', error);
+      console.error('Failed to save trip to database:', error);
+
+      try {
+        const history = await AsyncStorage.getItem(TRIP_HISTORY_KEY);
+        const historyArray: Trip[] = history ? JSON.parse(history) : [];
+        const updatedHistory = [finalTrip, ...historyArray].slice(0, MAX_HISTORY_ITEMS);
+        await AsyncStorage.setItem(TRIP_HISTORY_KEY, JSON.stringify(updatedHistory));
+        setTripHistory(updatedHistory);
+      } catch (storageError) {
+        console.error('Failed to save to AsyncStorage:', storageError);
+      }
     }
 
     setCurrentTrip(null);
@@ -211,24 +234,42 @@ export function TripProvider({ children }: TripProviderProps) {
 
   const loadTripHistory = useCallback(async () => {
     try {
-      const history = await AsyncStorage.getItem(TRIP_HISTORY_KEY);
-      if (history) {
-        const historyArray: Trip[] = JSON.parse(history);
-        setTripHistory(historyArray);
-      }
+      const trips = await db.getAllTrips();
+      setTripHistory(trips);
+      console.log(`Loaded ${trips.length} trips from database`);
     } catch (error) {
-      console.error('Failed to load trip history:', error);
+      console.error('Failed to load trip history from database:', error);
+
+      try {
+        const history = await AsyncStorage.getItem(TRIP_HISTORY_KEY);
+        if (history) {
+          const historyArray: Trip[] = JSON.parse(history);
+          setTripHistory(historyArray);
+        }
+      } catch (storageError) {
+        console.error('Failed to load from AsyncStorage:', storageError);
+      }
     }
   }, []);
 
   const deleteTripFromHistory = useCallback(
     async (tripId: string) => {
       try {
+        await db.deleteTrip(tripId);
+        console.log(`Deleted trip ${tripId} from database`);
+
         const updatedHistory = tripHistory.filter((trip) => trip.id !== tripId);
-        await AsyncStorage.setItem(TRIP_HISTORY_KEY, JSON.stringify(updatedHistory));
         setTripHistory(updatedHistory);
       } catch (error) {
-        console.error('Failed to delete trip from history:', error);
+        console.error('Failed to delete trip from database:', error);
+
+        try {
+          const updatedHistory = tripHistory.filter((trip) => trip.id !== tripId);
+          await AsyncStorage.setItem(TRIP_HISTORY_KEY, JSON.stringify(updatedHistory));
+          setTripHistory(updatedHistory);
+        } catch (storageError) {
+          console.error('Failed to delete from AsyncStorage:', storageError);
+        }
       }
     },
     [tripHistory]
@@ -236,16 +277,28 @@ export function TripProvider({ children }: TripProviderProps) {
 
   const clearTripHistory = useCallback(async () => {
     try {
-      await AsyncStorage.removeItem(TRIP_HISTORY_KEY);
+      await db.deleteAllTrips();
+      console.log('Cleared all trips from database');
+
       setTripHistory([]);
     } catch (error) {
-      console.error('Failed to clear trip history:', error);
+      console.error('Failed to clear database:', error);
+
+      try {
+        await AsyncStorage.removeItem(TRIP_HISTORY_KEY);
+        setTripHistory([]);
+      } catch (storageError) {
+        console.error('Failed to clear AsyncStorage:', storageError);
+      }
     }
   }, []);
 
+  // Load trip history after database is ready
   useEffect(() => {
-    loadTripHistory();
-  }, [loadTripHistory]);
+    if (isDbReady) {
+      loadTripHistory();
+    }
+  }, [isDbReady, loadTripHistory]);
 
   const value: TripContextValue = {
     currentTrip,

@@ -18,7 +18,9 @@
         "NSLocationWhenInUseUsageDescription": "Speedometer cần truy cập vị trí của bạn để hiển thị tốc độ và ghi lại hành trình.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Speedometer cần truy cập vị trí của bạn ngay cả khi ứng dụng ở chế độ nền để theo dõi hành trình.",
         "NSLocationAlwaysUsageDescription": "Speedometer cần truy cập vị trí của bạn để theo dõi hành trình ngay cả khi ứng dụng ở chế độ nền.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       },
       "config": {
         "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
@@ -44,6 +46,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
   }
 }
