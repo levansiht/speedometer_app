@@ -1,4 +1,8 @@
-export type ThemeName = 'light' | 'dark' | 'auto';
+export enum ThemeName {
+  LIGHT = 'light',
+  DARK = 'dark',
+  AUTO = 'auto',
+}
 
 export interface ColorScheme {
   primary: string;

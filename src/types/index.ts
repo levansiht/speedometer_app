@@ -1,4 +1,3 @@
-
 /**
  * Supported speed units
  */
@@ -62,7 +61,11 @@ export interface LocationData {
 /**
  * GPS Permission status
  */
-export type PermissionStatus = 'granted' | 'denied' | 'undetermined';
+export enum PermissionStatus {
+  GRANTED = 'granted',
+  DENIED = 'denied',
+  UNDETERMINED = 'undetermined',
+}
 
 // ==================== SPEED & STATS ====================
 

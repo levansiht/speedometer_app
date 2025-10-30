@@ -14,7 +14,7 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const systemColorScheme = useColorScheme();
-  const [theme, setThemeState] = useState<ThemeName>('auto');
+  const [theme, setThemeState] = useState<ThemeName>(ThemeName.AUTO);
 
   useEffect(() => {
     loadTheme();
@@ -27,10 +27,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const loadTheme = async () => {
     try {
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (
-        savedTheme &&
-        (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'auto')
-      ) {
+      if (savedTheme && Object.values(ThemeName).includes(savedTheme as ThemeName)) {
         setThemeState(savedTheme as ThemeName);
       }
     } catch (error) {
@@ -52,17 +49,17 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   const toggleTheme = () => {
     setThemeState((current) => {
-      if (current === 'light') return 'dark';
-      if (current === 'dark') return 'light';
-      return 'light';
+      if (current === ThemeName.LIGHT) return ThemeName.DARK;
+      if (current === ThemeName.DARK) return ThemeName.LIGHT;
+      return ThemeName.LIGHT;
     });
   };
 
   const getActiveTheme = (): 'light' | 'dark' => {
-    if (theme === 'auto') {
+    if (theme === ThemeName.AUTO) {
       return systemColorScheme === 'dark' ? 'dark' : 'light';
     }
-    return theme;
+    return theme === ThemeName.LIGHT ? 'light' : 'dark';
   };
 
   const activeTheme = getActiveTheme();
@@ -79,7 +76,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
-
 
 export const useTheme = (): ThemeContextValue => {
   const context = useContext(ThemeContext);

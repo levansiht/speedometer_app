@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocation, useTheme } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
-import { SpeedUnit } from '../types';
+import { SpeedUnit, PermissionStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
 
@@ -28,7 +28,7 @@ export const SpeedometerScreen: React.FC = () => {
   const hasRequestedPermission = React.useRef(false);
   useEffect(() => {
     const initializeGPS = async () => {
-      if (permission === 'undetermined' && !hasRequestedPermission.current) {
+      if (permission === PermissionStatus.UNDETERMINED && !hasRequestedPermission.current) {
         hasRequestedPermission.current = true;
         await requestPermission();
       }
@@ -39,14 +39,14 @@ export const SpeedometerScreen: React.FC = () => {
 
   const hasStartedTracking = React.useRef(false);
   useEffect(() => {
-    if (permission === 'granted' && !isTracking && !hasStartedTracking.current) {
+    if (permission === PermissionStatus.GRANTED && !isTracking && !hasStartedTracking.current) {
       hasStartedTracking.current = true;
       startTracking();
     }
   }, [permission, isTracking, startTracking]);
 
   useEffect(() => {
-    if (permission === 'denied') {
+    if (permission === PermissionStatus.DENIED) {
       Alert.alert(
         'Quyền truy cập vị trí',
         'Ứng dụng cần quyền truy cập GPS để đo tốc độ. Vui lòng cấp quyền trong Cài đặt.',
@@ -73,9 +73,9 @@ export const SpeedometerScreen: React.FC = () => {
 
   const averageSpeed = speedKMH * 0.7;
   const maxSpeed = speedKMH * 1.3;
-  const distance = 0; 
+  const distance = 0;
 
-  if (permission === 'undetermined' || isLoading) {
+  if (permission === PermissionStatus.UNDETERMINED || isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -86,7 +86,7 @@ export const SpeedometerScreen: React.FC = () => {
     );
   }
 
-  if (permission === 'denied') {
+  if (permission === PermissionStatus.DENIED) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>

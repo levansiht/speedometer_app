@@ -33,14 +33,13 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
   const { enableMockData = false, autoStart = false, distanceInterval, timeInterval } = config;
 
   const [location, setLocation] = useState<LocationData | null>(null);
-  const [permission, setPermission] = useState<PermissionStatus>('undetermined');
+  const [permission, setPermission] = useState<PermissionStatus>(PermissionStatus.UNDETERMINED);
   const [isTracking, setIsTracking] = useState<boolean>(false);
   const [error, setError] = useState<GPSError | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLocationServicesEnabled, setIsLocationServicesEnabled] = useState<boolean>(true);
 
   const watchSubscription = useRef<{ remove: () => void } | null>(null);
-
 
   useEffect(() => {
     const checkPermissions = async () => {
@@ -50,7 +49,7 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       const servicesEnabled = await isLocationEnabled();
       setIsLocationServicesEnabled(servicesEnabled);
 
-      if (autoStart && status === 'granted' && servicesEnabled) {
+      if (autoStart && status === PermissionStatus.GRANTED && servicesEnabled) {
         await startTracking();
       }
     };
@@ -99,7 +98,7 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
   }, [enableMockData]);
 
   const getCurrentPosition = useCallback(async (): Promise<void> => {
-    if (permission !== 'granted' && !enableMockData) {
+    if (permission !== PermissionStatus.GRANTED && !enableMockData) {
       setError({
         type: GPSErrorType.PERMISSION_DENIED,
         message: 'Location permission not granted',
@@ -124,13 +123,12 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     setIsLoading(false);
   }, [permission, enableMockData]);
 
- 
   const startTracking = useCallback(async (): Promise<void> => {
     if (watchSubscription.current) {
       watchSubscription.current.remove();
     }
 
-    if (permission !== 'granted' && !enableMockData) {
+    if (permission !== PermissionStatus.GRANTED && !enableMockData) {
       setError({
         type: GPSErrorType.PERMISSION_DENIED,
         message: 'Location permission not granted',
@@ -184,7 +182,6 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     }
   }, [permission, enableMockData, distanceInterval, timeInterval]);
 
- 
   const stopTracking = useCallback((): void => {
     if (watchSubscription.current) {
       watchSubscription.current.remove();

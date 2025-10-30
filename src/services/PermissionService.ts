@@ -9,11 +9,11 @@ export const requestLocationPermission = async (): Promise<{
     const { status } = await Location.requestForegroundPermissionsAsync();
 
     if (status === 'granted') {
-      return { status: 'granted' };
+      return { status: PermissionStatus.GRANTED };
     }
 
     return {
-      status: 'denied',
+      status: PermissionStatus.DENIED,
       error: {
         type: GPSErrorType.PERMISSION_DENIED,
         message: 'Location permission denied by user',
@@ -22,7 +22,7 @@ export const requestLocationPermission = async (): Promise<{
     };
   } catch (error) {
     return {
-      status: 'denied',
+      status: PermissionStatus.DENIED,
       error: {
         type: GPSErrorType.UNKNOWN,
         message: error instanceof Error ? error.message : 'Unknown permission error',
@@ -38,15 +38,15 @@ export const checkLocationPermission = async (): Promise<PermissionStatus> => {
 
     switch (status) {
       case 'granted':
-        return 'granted';
+        return PermissionStatus.GRANTED;
       case 'denied':
-        return 'denied';
+        return PermissionStatus.DENIED;
       default:
-        return 'undetermined';
+        return PermissionStatus.UNDETERMINED;
     }
   } catch (error) {
     console.error('Error checking location permission:', error);
-    return 'undetermined';
+    return PermissionStatus.UNDETERMINED;
   }
 };
 
@@ -65,9 +65,9 @@ export const requestBackgroundLocationPermission = async (): Promise<{
 }> => {
   try {
     const foregroundStatus = await checkLocationPermission();
-    if (foregroundStatus !== 'granted') {
+    if (foregroundStatus !== PermissionStatus.GRANTED) {
       return {
-        status: 'denied',
+        status: PermissionStatus.DENIED,
         error: {
           type: GPSErrorType.PERMISSION_DENIED,
           message: 'Foreground location permission required first',
@@ -79,11 +79,11 @@ export const requestBackgroundLocationPermission = async (): Promise<{
     const { status } = await Location.requestBackgroundPermissionsAsync();
 
     if (status === 'granted') {
-      return { status: 'granted' };
+      return { status: PermissionStatus.GRANTED };
     }
 
     return {
-      status: 'denied',
+      status: PermissionStatus.DENIED,
       error: {
         type: GPSErrorType.PERMISSION_DENIED,
         message: 'Background location permission denied by user',
@@ -92,7 +92,7 @@ export const requestBackgroundLocationPermission = async (): Promise<{
     };
   } catch (error) {
     return {
-      status: 'denied',
+      status: PermissionStatus.DENIED,
       error: {
         type: GPSErrorType.UNKNOWN,
         message: error instanceof Error ? error.message : 'Unknown permission error',

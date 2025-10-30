@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'rea
 import { useLocation } from '../hooks';
 import { Colors } from '../constants';
 import { convertSpeed, formatSpeed } from '../constants/Units';
-import { SpeedUnit } from '../types';
+import { SpeedUnit, PermissionStatus } from '../types';
 
 export const GPSDebugComponent: React.FC = () => {
   const {
@@ -24,7 +24,7 @@ export const GPSDebugComponent: React.FC = () => {
 
   const handleRequestPermission = async () => {
     await requestPermission();
-    if (permission === 'granted') {
+    if (permission === PermissionStatus.GRANTED) {
       Alert.alert('Success', 'Location permission granted!');
     }
   };
@@ -63,17 +63,19 @@ export const GPSDebugComponent: React.FC = () => {
         <TouchableOpacity
           style={[styles.button, styles.primaryButton]}
           onPress={handleRequestPermission}
-          disabled={permission === 'granted'}
+          disabled={permission === PermissionStatus.GRANTED}
         >
           <Text style={styles.buttonText}>
-            {permission === 'granted' ? '✅ Permission Granted' : '🔓 Request Permission'}
+            {permission === PermissionStatus.GRANTED
+              ? '✅ Permission Granted'
+              : '🔓 Request Permission'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, styles.successButton]}
           onPress={handleStartTracking}
-          disabled={isTracking || permission !== 'granted'}
+          disabled={isTracking || permission !== PermissionStatus.GRANTED}
         >
           <Text style={styles.buttonText}>▶️ Start Tracking</Text>
         </TouchableOpacity>
@@ -89,7 +91,7 @@ export const GPSDebugComponent: React.FC = () => {
         <TouchableOpacity
           style={[styles.button, styles.infoButton]}
           onPress={getCurrentPosition}
-          disabled={permission !== 'granted'}
+          disabled={permission !== PermissionStatus.GRANTED}
         >
           <Text style={styles.buttonText}>📍 Get Current Position</Text>
         </TouchableOpacity>
@@ -170,11 +172,11 @@ const DataRow: React.FC<{ label: string; value: string; unit?: string; highlight
   </View>
 );
 
-const getStatusColor = (status: string): string => {
+const getStatusColor = (status: PermissionStatus): string => {
   switch (status) {
-    case 'granted':
+    case PermissionStatus.GRANTED:
       return Colors.light.success;
-    case 'denied':
+    case PermissionStatus.DENIED:
       return Colors.light.error;
     default:
       return Colors.light.warning;
