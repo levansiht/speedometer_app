@@ -1,5 +1,14 @@
-import { useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Animated,
+  Easing,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocation, useTheme } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
@@ -8,8 +17,27 @@ import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
 
 export function SpeedometerScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  const handleToggleTheme = useCallback(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 200,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: true,
+    }).start(() => {
+      toggleTheme();
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [fadeAnim, toggleTheme]);
 
   const {
     location,
@@ -117,38 +145,50 @@ export function SpeedometerScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🚗 Speedometer</Text>
-        <View style={styles.statusBadge}>
-          <View style={[styles.statusDot, isTracking && styles.statusDotActive]} />
-          <Text style={styles.statusText}>{isTracking ? 'Tracking' : 'Paused'}</Text>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <SafeAreaView style={styles.flex}>
+        <View style={styles.header}>
+          <Text style={styles.title}>🚗 Speedometer</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.themeButton} onPress={handleToggleTheme}>
+              <Text style={styles.themeButtonText}>{isDark ? '☀️' : '🌙'}</Text>
+            </TouchableOpacity>
+            <View style={styles.statusBadge}>
+              <View style={[styles.statusDot, isTracking && styles.statusDotActive]} />
+              <Text style={styles.statusText}>{isTracking ? 'Tracking' : 'Paused'}</Text>
+            </View>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.gaugeContainer}>
-        <SpeedometerGauge speed={speedMS} maxSpeed={200} unit={SpeedUnit.KMH} />
-      </View>
+        <View style={styles.gaugeContainer}>
+          <SpeedometerGauge speed={speedMS} maxSpeed={200} unit={SpeedUnit.KMH} />
+        </View>
 
-      <View style={styles.statsContainer}>
-        <StatCard label="Trung bình" value={averageSpeed.toFixed(0)} unit="km/h" styles={styles} />
-        <StatCard label="Tối đa" value={maxSpeed.toFixed(0)} unit="km/h" styles={styles} />
-        <StatCard label="Quãng đường" value={formatDistance(distance)} unit="" styles={styles} />
-      </View>
+        <View style={styles.statsContainer}>
+          <StatCard
+            label="Trung bình"
+            value={averageSpeed.toFixed(0)}
+            unit="km/h"
+            styles={styles}
+          />
+          <StatCard label="Tối đa" value={maxSpeed.toFixed(0)} unit="km/h" styles={styles} />
+          <StatCard label="Quãng đường" value={formatDistance(distance)} unit="" styles={styles} />
+        </View>
 
-      <View style={styles.speedInfo}>
-        <SpeedRow label="km/h" value={speedKMH.toFixed(1)} highlight styles={styles} />
-        <SpeedRow label="mph" value={speedMPH.toFixed(1)} styles={styles} />
-        <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
-      </View>
+        <View style={styles.speedInfo}>
+          <SpeedRow label="km/h" value={speedKMH.toFixed(1)} highlight styles={styles} />
+          <SpeedRow label="mph" value={speedMPH.toFixed(1)} styles={styles} />
+          <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
+        </View>
 
-      <TouchableOpacity
-        style={[styles.controlButton, isTracking && styles.controlButtonStop]}
-        onPress={handleToggleTracking}
-      >
-        <Text style={styles.controlButtonText}>{isTracking ? '⏹️ Dừng' : '▶️ Bắt đầu'}</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
+        <TouchableOpacity
+          style={[styles.controlButton, isTracking && styles.controlButtonStop]}
+          onPress={handleToggleTracking}
+        >
+          <Text style={styles.controlButtonText}>{isTracking ? '⏹️ Dừng' : '▶️ Bắt đầu'}</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    </Animated.View>
   );
 }
 
@@ -190,6 +230,9 @@ const createStyles = (colors: ColorScheme) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    flex: {
+      flex: 1,
     },
     loadingContainer: {
       flex: 1,
@@ -246,6 +289,24 @@ const createStyles = (colors: ColorScheme) =>
       fontSize: 24,
       fontWeight: 'bold',
       color: colors.primary,
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    themeButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    themeButtonText: {
+      fontSize: 20,
     },
     statusBadge: {
       flexDirection: 'row',
