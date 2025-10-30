@@ -1,5 +1,5 @@
-import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { useCallback, useMemo } from 'react';
 import { useLocation, useTheme } from '../hooks';
 import { convertSpeed, formatSpeed } from '../constants/Units';
 import { SpeedUnit, PermissionStatus } from '../types';
@@ -7,7 +7,7 @@ import type { ColorScheme } from '../types/theme';
 
 export function GPSDebugComponent() {
   const { colors } = useTheme();
-  const styles = createStyles(colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const {
     location,
@@ -25,26 +25,26 @@ export function GPSDebugComponent() {
     autoStart: false,
   });
 
-  const handleRequestPermission = async () => {
+  const handleRequestPermission = useCallback(async () => {
     await requestPermission();
     if (permission === PermissionStatus.GRANTED) {
       Alert.alert('Success', 'Location permission granted!');
     }
-  };
+  }, [requestPermission, permission]);
 
-  const handleStartTracking = async () => {
+  const handleStartTracking = useCallback(async () => {
     await startTracking();
     Alert.alert('Tracking Started', 'GPS tracking is now active');
-  };
+  }, [startTracking]);
 
-  const handleStopTracking = () => {
+  const handleStopTracking = useCallback(() => {
     stopTracking();
     Alert.alert('Tracking Stopped', 'GPS tracking has been stopped');
-  };
+  }, [stopTracking]);
 
-  const speedMS = location?.coords.speed ?? 0;
-  const speedKMH = convertSpeed(speedMS, SpeedUnit.KMH);
-  const speedMPH = convertSpeed(speedMS, SpeedUnit.MPH);
+  const speedMS = useMemo(() => location?.coords.speed ?? 0, [location]);
+  const speedKMH = useMemo(() => convertSpeed(speedMS, SpeedUnit.KMH), [speedMS]);
+  const speedMPH = useMemo(() => convertSpeed(speedMS, SpeedUnit.MPH), [speedMS]);
 
   return (
     <ScrollView style={styles.container}>

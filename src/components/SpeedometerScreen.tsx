@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocation, useTheme } from '../hooks';
@@ -9,7 +9,7 @@ import { convertSpeed, formatDistance } from '../constants/Units';
 
 export function SpeedometerScreen() {
   const { colors } = useTheme();
-  const styles = createStyles(colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const {
     location,
@@ -25,7 +25,9 @@ export function SpeedometerScreen() {
     autoStart: false,
   });
 
-  const hasRequestedPermission = React.useRef(false);
+  const hasRequestedPermission = useRef(false);
+  const hasStartedTracking = useRef(false);
+
   useEffect(() => {
     const initializeGPS = async () => {
       if (permission === PermissionStatus.UNDETERMINED && !hasRequestedPermission.current) {
@@ -37,7 +39,6 @@ export function SpeedometerScreen() {
     initializeGPS();
   }, [permission, requestPermission]);
 
-  const hasStartedTracking = React.useRef(false);
   useEffect(() => {
     if (permission === PermissionStatus.GRANTED && !isTracking && !hasStartedTracking.current) {
       hasStartedTracking.current = true;
@@ -68,12 +69,24 @@ export function SpeedometerScreen() {
   }, [error]);
 
   const speedMS = location?.coords.speed ?? 0;
-  const speedKMH = convertSpeed(speedMS, SpeedUnit.KMH);
-  const speedMPH = convertSpeed(speedMS, SpeedUnit.MPH);
+  const speedKMH = useMemo(() => convertSpeed(speedMS, SpeedUnit.KMH), [speedMS]);
+  const speedMPH = useMemo(() => convertSpeed(speedMS, SpeedUnit.MPH), [speedMS]);
 
-  const averageSpeed = speedKMH * 0.7;
-  const maxSpeed = speedKMH * 1.3;
+  const averageSpeed = useMemo(() => speedKMH * 0.7, [speedKMH]);
+  const maxSpeed = useMemo(() => speedKMH * 1.3, [speedKMH]);
   const distance = 0;
+
+  const handleRetry = useCallback(() => {
+    requestPermission();
+  }, [requestPermission]);
+
+  const handleToggleTracking = useCallback(() => {
+    if (isTracking) {
+      stopTracking();
+    } else {
+      startTracking();
+    }
+  }, [isTracking, stopTracking, startTracking]);
 
   if (permission === PermissionStatus.UNDETERMINED || isLoading) {
     return (
@@ -95,7 +108,7 @@ export function SpeedometerScreen() {
           <Text style={styles.errorMessage}>
             Vui lòng cấp quyền truy cập vị trí để sử dụng ứng dụng
           </Text>
-          <TouchableOpacity style={styles.retryButton} onPress={requestPermission}>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
             <Text style={styles.retryButtonText}>Thử lại</Text>
           </TouchableOpacity>
         </View>
@@ -131,7 +144,7 @@ export function SpeedometerScreen() {
 
       <TouchableOpacity
         style={[styles.controlButton, isTracking && styles.controlButtonStop]}
-        onPress={isTracking ? stopTracking : startTracking}
+        onPress={handleToggleTracking}
       >
         <Text style={styles.controlButtonText}>{isTracking ? '⏹️ Dừng' : '▶️ Bắt đầu'}</Text>
       </TouchableOpacity>

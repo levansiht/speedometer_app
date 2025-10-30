@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Circle, Line, Text as SvgText, G } from 'react-native-svg';
 import { SpeedUnit } from '../types';
@@ -27,7 +27,7 @@ export function SpeedometerGauge({
   const { colors } = useTheme();
   const [currentSpeed, setCurrentSpeed] = useState(0);
 
-  const speedInUnit = convertSpeed(speed, unit);
+  const speedInUnit = useMemo(() => convertSpeed(speed, unit), [speed, unit]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -41,13 +41,22 @@ export function SpeedometerGauge({
     return () => clearInterval(interval);
   }, [speedInUnit]);
 
-  const speedPercentage = Math.min(currentSpeed / maxSpeed, 1);
-  const needleAngle = -135 + speedPercentage * 270;
+  const speedPercentage = useMemo(
+    () => Math.min(currentSpeed / maxSpeed, 1),
+    [currentSpeed, maxSpeed]
+  );
+  const needleAngle = useMemo(() => -135 + speedPercentage * 270, [speedPercentage]);
 
-  const needleX = CENTER + NEEDLE_LENGTH * Math.cos(((needleAngle - 90) * Math.PI) / 180);
-  const needleY = CENTER + NEEDLE_LENGTH * Math.sin(((needleAngle - 90) * Math.PI) / 180);
+  const needleX = useMemo(
+    () => CENTER + NEEDLE_LENGTH * Math.cos(((needleAngle - 90) * Math.PI) / 180),
+    [needleAngle]
+  );
+  const needleY = useMemo(
+    () => CENTER + NEEDLE_LENGTH * Math.sin(((needleAngle - 90) * Math.PI) / 180),
+    [needleAngle]
+  );
 
-  const renderTicks = () => {
+  const renderTicks = useCallback(() => {
     const ticks = [];
     const majorTicks = 10;
     const minorTicksPerMajor = 5;
@@ -78,7 +87,6 @@ export function SpeedometerGauge({
         />
       );
 
-      // Add speed label
       if (isMajor) {
         const labelRadius = RADIUS - 40;
         const labelX = CENTER + labelRadius * Math.cos(((angle - 90) * Math.PI) / 180);
@@ -128,13 +136,13 @@ export function SpeedometerGauge({
     }
 
     return ticks;
-  };
+  }, [colors, maxSpeed]);
 
-  const getSpeedColor = () => {
+  const speedColor = useMemo(() => {
     if (speedPercentage < 0.5) return colors.success;
     if (speedPercentage < 0.75) return colors.warning;
     return colors.error;
-  };
+  }, [speedPercentage, colors]);
 
   return (
     <View style={styles.container}>
@@ -161,7 +169,7 @@ export function SpeedometerGauge({
           cx={CENTER}
           cy={CENTER}
           r={RADIUS}
-          stroke={getSpeedColor()}
+          stroke={speedColor}
           strokeWidth={15}
           fill="none"
           strokeDasharray={`${speedPercentage * RADIUS * Math.PI * 1.5} ${RADIUS * Math.PI * 2}`}
