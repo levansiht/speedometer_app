@@ -1,11 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { useLocation } from '../hooks';
-import { Colors } from '../constants';
+import { useLocation, useTheme } from '../hooks';
 import { convertSpeed, formatSpeed } from '../constants/Units';
 import { SpeedUnit, PermissionStatus } from '../types';
+import type { ColorScheme } from '../types/theme';
 
-export const GPSDebugComponent: React.FC = () => {
+export function GPSDebugComponent() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const {
     location,
     permission,
@@ -49,12 +52,18 @@ export const GPSDebugComponent: React.FC = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📊 Status</Text>
-        <StatusRow label="Permission" value={permission} color={getStatusColor(permission)} />
-        <StatusRow label="Tracking" value={isTracking ? 'Active' : 'Inactive'} />
-        <StatusRow label="Loading" value={isLoading ? 'Yes' : 'No'} />
+        <StatusRow
+          label="Permission"
+          value={permission}
+          color={getStatusColor(permission, colors)}
+          styles={styles}
+        />
+        <StatusRow label="Tracking" value={isTracking ? 'Active' : 'Inactive'} styles={styles} />
+        <StatusRow label="Loading" value={isLoading ? 'Yes' : 'No'} styles={styles} />
         <StatusRow
           label="Location Services"
           value={isLocationServicesEnabled ? 'Enabled' : 'Disabled'}
+          styles={styles}
         />
       </View>
 
@@ -100,28 +109,35 @@ export const GPSDebugComponent: React.FC = () => {
       {location && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📍 Location Data</Text>
-          <DataRow label="Latitude" value={location.coords.latitude.toFixed(6)} />
-          <DataRow label="Longitude" value={location.coords.longitude.toFixed(6)} />
+          <DataRow label="Latitude" value={location.coords.latitude.toFixed(6)} styles={styles} />
+          <DataRow label="Longitude" value={location.coords.longitude.toFixed(6)} styles={styles} />
           <DataRow
             label="Altitude"
             value={location.coords.altitude?.toFixed(2) ?? 'N/A'}
             unit="m"
+            styles={styles}
           />
           <DataRow
             label="Accuracy"
             value={location.coords.accuracy?.toFixed(2) ?? 'N/A'}
             unit="m"
+            styles={styles}
           />
-          <DataRow label="Heading" value={location.coords.heading?.toFixed(0) ?? 'N/A'} unit="°" />
+          <DataRow
+            label="Heading"
+            value={location.coords.heading?.toFixed(0) ?? 'N/A'}
+            unit="°"
+            styles={styles}
+          />
         </View>
       )}
 
       {location && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>⚡ Speed Data</Text>
-          <DataRow label="Speed (m/s)" value={speedMS.toFixed(2)} />
-          <DataRow label="Speed (km/h)" value={speedKMH.toFixed(2)} highlight />
-          <DataRow label="Speed (mph)" value={speedMPH.toFixed(2)} />
+          <DataRow label="Speed (m/s)" value={speedMS.toFixed(2)} styles={styles} />
+          <DataRow label="Speed (km/h)" value={speedKMH.toFixed(2)} highlight styles={styles} />
+          <DataRow label="Speed (mph)" value={speedMPH.toFixed(2)} styles={styles} />
           <Text style={styles.speedFormatted}>{formatSpeed(speedMS, SpeedUnit.KMH, 1)}</Text>
         </View>
       )}
@@ -145,147 +161,158 @@ export const GPSDebugComponent: React.FC = () => {
       </View>
     </ScrollView>
   );
-};
+}
 
-const StatusRow: React.FC<{ label: string; value: string; color?: string }> = ({
-  label,
-  value,
-  color,
-}) => (
-  <View style={styles.row}>
-    <Text style={styles.label}>{label}:</Text>
-    <Text style={[styles.value, color && { color }]}>{value}</Text>
-  </View>
-);
+interface StatusRowProps {
+  label: string;
+  value: string;
+  color?: string;
+  styles: ReturnType<typeof createStyles>;
+}
 
-const DataRow: React.FC<{ label: string; value: string; unit?: string; highlight?: boolean }> = ({
-  label,
-  value,
-  unit,
-  highlight,
-}) => (
-  <View style={styles.row}>
-    <Text style={styles.label}>{label}:</Text>
-    <Text style={[styles.value, highlight && styles.highlightValue]}>
-      {value} {unit}
-    </Text>
-  </View>
-);
+function StatusRow({ label, value, color, styles }: StatusRowProps) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.label}>{label}:</Text>
+      <Text style={[styles.value, color && { color }]}>{value}</Text>
+    </View>
+  );
+}
 
-const getStatusColor = (status: PermissionStatus): string => {
+interface DataRowProps {
+  label: string;
+  value: string;
+  unit?: string;
+  highlight?: boolean;
+  styles: ReturnType<typeof createStyles>;
+}
+
+function DataRow({ label, value, unit, highlight, styles }: DataRowProps) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.label}>{label}:</Text>
+      <Text style={[styles.value, highlight && styles.highlightValue]}>
+        {value} {unit}
+      </Text>
+    </View>
+  );
+}
+
+const getStatusColor = (status: PermissionStatus, colors: ColorScheme): string => {
   switch (status) {
     case PermissionStatus.GRANTED:
-      return Colors.light.success;
+      return colors.success;
     case PermissionStatus.DENIED:
-      return Colors.light.error;
+      return colors.error;
     default:
-      return Colors.light.warning;
+      return colors.warning;
   }
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.light.background,
-    padding: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.light.primary,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  section: {
-    backgroundColor: Colors.light.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.light.text,
-    marginBottom: 12,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.divider,
-  },
-  label: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    fontWeight: '500',
-  },
-  value: {
-    fontSize: 14,
-    color: Colors.light.text,
-    fontWeight: '600',
-  },
-  highlightValue: {
-    fontSize: 16,
-    color: Colors.light.primary,
-    fontWeight: 'bold',
-  },
-  button: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginBottom: 10,
-    alignItems: 'center',
-  },
-  primaryButton: {
-    backgroundColor: Colors.light.primary,
-  },
-  successButton: {
-    backgroundColor: Colors.light.success,
-  },
-  warningButton: {
-    backgroundColor: Colors.light.warning,
-  },
-  infoButton: {
-    backgroundColor: Colors.light.info,
-  },
-  buttonText: {
-    color: Colors.light.textInverse,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  speedFormatted: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: Colors.light.primary,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  errorSection: {
-    backgroundColor: Colors.light.error + '10',
-    borderColor: Colors.light.error,
-  },
-  errorType: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: Colors.light.error,
-    textTransform: 'uppercase',
-  },
-  errorMessage: {
-    fontSize: 14,
-    color: Colors.light.text,
-    marginTop: 8,
-  },
-  errorTime: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-    marginTop: 4,
-  },
-  infoText: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    lineHeight: 22,
-  },
-});
+const createStyles = (colors: ColorScheme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      padding: 16,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: colors.primary,
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+    section: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 12,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    label: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    value: {
+      fontSize: 14,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    highlightValue: {
+      fontSize: 16,
+      color: colors.primary,
+      fontWeight: 'bold',
+    },
+    button: {
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+      marginBottom: 10,
+      alignItems: 'center',
+    },
+    primaryButton: {
+      backgroundColor: colors.primary,
+    },
+    successButton: {
+      backgroundColor: colors.success,
+    },
+    warningButton: {
+      backgroundColor: colors.warning,
+    },
+    infoButton: {
+      backgroundColor: colors.info,
+    },
+    buttonText: {
+      color: colors.textInverse,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    speedFormatted: {
+      fontSize: 32,
+      fontWeight: 'bold',
+      color: colors.primary,
+      textAlign: 'center',
+      marginTop: 10,
+    },
+    errorSection: {
+      backgroundColor: colors.error + '10',
+      borderColor: colors.error,
+    },
+    errorType: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: colors.error,
+      textTransform: 'uppercase',
+    },
+    errorMessage: {
+      fontSize: 14,
+      color: colors.text,
+      marginTop: 8,
+    },
+    errorTime: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    infoText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+  });

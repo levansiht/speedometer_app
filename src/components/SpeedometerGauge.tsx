@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Circle, Line, Text as SvgText, G } from 'react-native-svg';
-import { Colors } from '../constants';
 import { SpeedUnit } from '../types';
 import { convertSpeed } from '../constants/Units';
+import { useTheme } from '../hooks';
 
 interface SpeedometerProps {
   speed: number;
@@ -18,12 +18,13 @@ const CENTER = GAUGE_SIZE / 2;
 const RADIUS = GAUGE_SIZE / 2 - 30;
 const NEEDLE_LENGTH = RADIUS - 20;
 
-export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
+export function SpeedometerGauge({
   speed,
   maxSpeed = 200,
   unit = SpeedUnit.KMH,
   showNeedle = true,
-}) => {
+}: SpeedometerProps) {
+  const { colors } = useTheme();
   const [currentSpeed, setCurrentSpeed] = useState(0);
 
   const speedInUnit = convertSpeed(speed, unit);
@@ -72,7 +73,7 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
           y1={y1}
           x2={x2}
           y2={y2}
-          stroke={Colors.light.textSecondary}
+          stroke={colors.textSecondary}
           strokeWidth={tickWidth}
         />
       );
@@ -89,7 +90,7 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
             key={`label-${i}`}
             x={labelX}
             y={labelY}
-            fill={Colors.light.textSecondary}
+            fill={colors.textSecondary}
             fontSize="14"
             fontWeight="600"
             textAnchor="middle"
@@ -118,7 +119,7 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
               y1={my1}
               x2={mx2}
               y2={my2}
-              stroke={Colors.light.divider}
+              stroke={colors.divider}
               strokeWidth={1}
             />
           );
@@ -130,9 +131,9 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
   };
 
   const getSpeedColor = () => {
-    if (speedPercentage < 0.5) return Colors.light.success;
-    if (speedPercentage < 0.75) return Colors.light.warning;
-    return Colors.light.error;
+    if (speedPercentage < 0.5) return colors.success;
+    if (speedPercentage < 0.75) return colors.warning;
+    return colors.error;
   };
 
   return (
@@ -142,7 +143,7 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
           cx={CENTER}
           cy={CENTER}
           r={RADIUS + 5}
-          stroke={Colors.light.border}
+          stroke={colors.border}
           strokeWidth={2}
           fill="none"
         />
@@ -151,7 +152,7 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
           cx={CENTER}
           cy={CENTER}
           r={RADIUS}
-          stroke={Colors.light.backgroundSecondary}
+          stroke={colors.backgroundSecondary}
           strokeWidth={15}
           fill="none"
         />
@@ -170,7 +171,7 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
 
         <G>{renderTicks()}</G>
 
-        <Circle cx={CENTER} cy={CENTER} r={15} fill={Colors.light.text} />
+        <Circle cx={CENTER} cy={CENTER} r={15} fill={colors.text} />
 
         {showNeedle && (
           <G>
@@ -179,22 +180,26 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
               y1={CENTER}
               x2={needleX}
               y2={needleY}
-              stroke={Colors.light.error}
+              stroke={colors.error}
               strokeWidth={4}
               strokeLinecap="round"
             />
-            <Circle cx={CENTER} cy={CENTER} r={8} fill={Colors.light.error} />
+            <Circle cx={CENTER} cy={CENTER} r={8} fill={colors.error} />
           </G>
         )}
       </Svg>
 
       <View style={styles.speedDisplay}>
-        <Text style={styles.speedValue}>{Math.round(currentSpeed)}</Text>
-        <Text style={styles.speedUnit}>{unit.toUpperCase()}</Text>
+        <Text style={[styles.speedValue, { color: colors.primary }]}>
+          {Math.round(currentSpeed)}
+        </Text>
+        <Text style={[styles.speedUnit, { color: colors.textSecondary }]}>
+          {unit.toUpperCase()}
+        </Text>
       </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -209,12 +214,10 @@ const styles = StyleSheet.create({
   speedValue: {
     fontSize: 56,
     fontWeight: 'bold',
-    color: Colors.light.primary,
   },
   speedUnit: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.textSecondary,
     marginTop: -8,
   },
 });

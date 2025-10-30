@@ -7,7 +7,7 @@ import { SpeedUnit, PermissionStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
 
-export const SpeedometerScreen: React.FC = () => {
+export function SpeedometerScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
 
@@ -137,7 +137,7 @@ export const SpeedometerScreen: React.FC = () => {
       </TouchableOpacity>
     </SafeAreaView>
   );
-};
+}
 
 interface StatCardProps {
   label: string;
@@ -146,13 +146,15 @@ interface StatCardProps {
   styles: ReturnType<typeof createStyles>;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, unit, styles }) => (
-  <View style={styles.statCard}>
-    <Text style={styles.statLabel}>{label}</Text>
-    <Text style={styles.statValue}>{value}</Text>
-    {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
-  </View>
-);
+function StatCard({ label, value, unit, styles }: StatCardProps) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
+    </View>
+  );
+}
 
 interface SpeedRowProps {
   label: string;
@@ -161,12 +163,14 @@ interface SpeedRowProps {
   styles: ReturnType<typeof createStyles>;
 }
 
-const SpeedRow: React.FC<SpeedRowProps> = ({ label, value, highlight, styles }) => (
-  <View style={styles.speedRow}>
-    <Text style={styles.speedLabel}>{label}</Text>
-    <Text style={[styles.speedValue, highlight && styles.speedValueHighlight]}>{value}</Text>
-  </View>
-);
+function SpeedRow({ label, value, highlight, styles }: SpeedRowProps) {
+  return (
+    <View style={styles.speedRow}>
+      <Text style={styles.speedLabel}>{label}</Text>
+      <Text style={[styles.speedValue, highlight && styles.speedValueHighlight]}>{value}</Text>
+    </View>
+  );
+}
 
 const createStyles = (colors: ColorScheme) =>
   StyleSheet.create({
