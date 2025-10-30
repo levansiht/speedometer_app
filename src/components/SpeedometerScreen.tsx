@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,15 +8,20 @@ import {
   Animated,
   Easing,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocation, useTheme, useTripManager, useSpeedAlert } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
 import { SpeedAlertBanner } from './SpeedAlertBanner';
+import { CompassIndicator } from './CompassIndicator';
+import { VoiceSettings } from './VoiceSettings';
 import { Text } from './Text';
 import { SpeedUnit, PermissionStatus, TripStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
+import { CompassService, type CompassData } from '../services/CompassService';
+import { VoiceService } from '../services/VoiceService';
 
 export function SpeedometerScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -24,6 +29,11 @@ export function SpeedometerScreen() {
   const styles = useMemo(() => createStyles(colors, insets.bottom), [colors, insets.bottom]);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  const [compassData, setCompassData] = useState<CompassData | null>(null);
+  const [isCompassAvailable, setIsCompassAvailable] = useState(false);
+
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   const handleToggleTheme = useCallback(() => {
     Animated.timing(fadeAnim, {
@@ -50,7 +60,7 @@ export function SpeedometerScreen() {
     requestPermission,
     startTracking: startGPSTracking,
   } = useLocation({
-    enableMockData: false, // Changed to false for real GPS data
+    enableMockData: false,
     autoStart: false,
   });
 
@@ -115,6 +125,54 @@ export function SpeedometerScreen() {
     }
   }, [error]);
 
+  useEffect(() => {
+    const initCompass = async () => {
+      const available = await CompassService.initialize();
+      setIsCompassAvailable(available);
+      if (available) {
+        CompassService.startWatching((data) => {
+          setCompassData(data);
+        });
+      }
+    };
+
+    initCompass();
+
+    return () => {
+      CompassService.stopWatching();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentTrip) return;
+
+    const handleTripEvents = async () => {
+      if (currentTrip.status === TripStatus.RUNNING && currentTrip.stats.distance === 0) {
+        await VoiceService.announceTripStart();
+      }
+    };
+
+    handleTripEvents();
+  }, [currentTrip?.status]);
+
+  useEffect(() => {
+    if (!currentTrip || currentTrip.status !== TripStatus.RUNNING) {
+      return;
+    }
+
+    const distanceKm = currentTrip.stats.distance / 1000;
+    const durationSeconds = currentTrip.stats.duration;
+    const averageSpeedMS = currentTrip.stats.averageSpeed;
+    const currentSpeedMS = location?.coords.speed ?? 0;
+
+    VoiceService.announceDistance({
+      distanceKm,
+      durationSeconds,
+      averageSpeedMS,
+      currentSpeedMS,
+    });
+  }, [currentTrip?.stats.distance, currentTrip?.status, location?.coords.speed]);
+
   const speedMS = Math.max(0, location?.coords.speed ?? 0); // Ensure speed >= 0
   const speedKMH = useMemo(() => convertSpeed(speedMS, SpeedUnit.KMH), [speedMS]);
   const speedMPH = useMemo(() => convertSpeed(speedMS, SpeedUnit.MPH), [speedMS]);
@@ -145,15 +203,18 @@ export function SpeedometerScreen() {
   }, [requestPermission]);
 
   const handleStartTrip = useCallback(() => {
+    VoiceService.resetAnnouncementCounter();
     startTrip();
   }, [startTrip]);
 
-  const handlePauseTrip = useCallback(() => {
+  const handlePauseTrip = useCallback(async () => {
     pauseTrip();
+    await VoiceService.announceTripPause();
   }, [pauseTrip]);
 
-  const handleResumeTrip = useCallback(() => {
+  const handleResumeTrip = useCallback(async () => {
     resumeTrip();
+    await VoiceService.announceTripResume();
   }, [resumeTrip]);
 
   const handleStopTrip = useCallback(async () => {
@@ -163,12 +224,25 @@ export function SpeedometerScreen() {
         text: 'Kết thúc',
         style: 'destructive',
         onPress: async () => {
+          if (currentTrip) {
+            const distanceKm = currentTrip.stats.distance / 1000;
+            const durationSeconds = currentTrip.stats.duration;
+            const averageSpeedMS = currentTrip.stats.averageSpeed;
+            const currentSpeedMS = location?.coords.speed ?? 0;
+
+            await VoiceService.announceTripEnd({
+              distanceKm,
+              durationSeconds,
+              averageSpeedMS,
+              currentSpeedMS,
+            });
+          }
           await stopTrip();
           Alert.alert('Thành công', 'Chuyến đi đã được lưu vào lịch sử');
         },
       },
     ]);
-  }, [stopTrip]);
+  }, [stopTrip, currentTrip, location]);
 
   if (permission === PermissionStatus.UNDETERMINED || isLoading) {
     return (
@@ -224,6 +298,12 @@ export function SpeedometerScreen() {
               🚗 Speedometer
             </Text>
             <View style={styles.headerRight}>
+              <TouchableOpacity
+                style={styles.themeButton}
+                onPress={() => setShowVoiceSettings(true)}
+              >
+                <Text style={styles.themeButtonText}>🔊</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.themeButton} onPress={handleToggleTheme}>
                 <Text style={styles.themeButtonText}>{isDark ? '☀️' : '🌙'}</Text>
               </TouchableOpacity>
@@ -243,6 +323,18 @@ export function SpeedometerScreen() {
           <View style={styles.gaugeContainer}>
             <SpeedometerGauge speed={speedMS} maxSpeed={200} unit={SpeedUnit.KMH} />
           </View>
+
+          {/* Compass Indicator */}
+          {isCompassAvailable && compassData && (
+            <View style={styles.compassContainer}>
+              <CompassIndicator
+                heading={compassData.heading}
+                direction={compassData.direction}
+                directionName={CompassService.getDirectionName(compassData.direction)}
+                colors={colors}
+              />
+            </View>
+          )}
 
           <View style={styles.statsContainer}>
             <StatCard
@@ -324,6 +416,16 @@ export function SpeedometerScreen() {
           </View>
         </ScrollView>
       </Animated.View>
+
+      {/* Voice Settings Modal */}
+      <Modal
+        visible={showVoiceSettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowVoiceSettings(false)}
+      >
+        <VoiceSettings onClose={() => setShowVoiceSettings(false)} />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -473,6 +575,11 @@ const createStyles = (colors: ColorScheme, bottomInset: number = 0) =>
     gaugeContainer: {
       alignItems: 'center',
       marginVertical: 20,
+    },
+    compassContainer: {
+      alignItems: 'center',
+      marginVertical: 12,
+      paddingHorizontal: 20,
     },
     statsContainer: {
       flexDirection: 'row',
