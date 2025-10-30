@@ -1,6 +1,4 @@
-/**
- * App Configuration Constants
- */
+
 
 // GPS Settings
 export const GPS_CONFIG = {

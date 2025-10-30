@@ -1,0 +1,239 @@
+/**
+ * Speedometer Gauge Component
+ * Beautiful circular speedometer with needle animation
+ */
+
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import Svg, { Circle, Line, Text as SvgText, G } from 'react-native-svg';
+import { Colors } from '../constants';
+import { SpeedUnit } from '../types';
+import { convertSpeed } from '../constants/Units';
+
+interface SpeedometerProps {
+  speed: number; // Speed in m/s
+  maxSpeed?: number; // Maximum speed for gauge (in selected unit)
+  unit?: SpeedUnit;
+  showNeedle?: boolean;
+}
+
+const { width } = Dimensions.get('window');
+const GAUGE_SIZE = Math.min(width - 40, 350);
+const CENTER = GAUGE_SIZE / 2;
+const RADIUS = GAUGE_SIZE / 2 - 30;
+const NEEDLE_LENGTH = RADIUS - 20;
+
+export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
+  speed,
+  maxSpeed = 200,
+  unit = SpeedUnit.KMH,
+  showNeedle = true,
+}) => {
+  const [currentSpeed, setCurrentSpeed] = useState(0);
+
+  // Convert speed to selected unit
+  const speedInUnit = convertSpeed(speed, unit);
+
+  // Smooth animation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSpeed((prev) => {
+        const diff = speedInUnit - prev;
+        if (Math.abs(diff) < 0.5) return speedInUnit;
+        return prev + diff * 0.2;
+      });
+    }, 16); // 60fps
+
+    return () => clearInterval(interval);
+  }, [speedInUnit]);
+
+  // Calculate needle angle (-135° to +135°, total 270°)
+  const speedPercentage = Math.min(currentSpeed / maxSpeed, 1);
+  const needleAngle = -135 + speedPercentage * 270;
+
+  // Calculate needle position
+  const needleX = CENTER + NEEDLE_LENGTH * Math.cos(((needleAngle - 90) * Math.PI) / 180);
+  const needleY = CENTER + NEEDLE_LENGTH * Math.sin(((needleAngle - 90) * Math.PI) / 180);
+
+  // Generate tick marks
+  const renderTicks = () => {
+    const ticks = [];
+    const majorTicks = 10; // Number of major ticks
+    const minorTicksPerMajor = 5;
+
+    for (let i = 0; i <= majorTicks; i++) {
+      const angle = -135 + (i * 270) / majorTicks;
+      const isMajor = true;
+      const tickLength = isMajor ? 20 : 10;
+      const tickWidth = isMajor ? 3 : 1.5;
+
+      const startRadius = RADIUS;
+      const endRadius = RADIUS - tickLength;
+
+      const x1 = CENTER + startRadius * Math.cos(((angle - 90) * Math.PI) / 180);
+      const y1 = CENTER + startRadius * Math.sin(((angle - 90) * Math.PI) / 180);
+      const x2 = CENTER + endRadius * Math.cos(((angle - 90) * Math.PI) / 180);
+      const y2 = CENTER + endRadius * Math.sin(((angle - 90) * Math.PI) / 180);
+
+      ticks.push(
+        <Line
+          key={`major-${i}`}
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={Colors.light.textSecondary}
+          strokeWidth={tickWidth}
+        />
+      );
+
+      // Add speed label
+      if (isMajor) {
+        const labelRadius = RADIUS - 40;
+        const labelX = CENTER + labelRadius * Math.cos(((angle - 90) * Math.PI) / 180);
+        const labelY = CENTER + labelRadius * Math.sin(((angle - 90) * Math.PI) / 180);
+        const speedValue = Math.round((i * maxSpeed) / majorTicks);
+
+        ticks.push(
+          <SvgText
+            key={`label-${i}`}
+            x={labelX}
+            y={labelY}
+            fill={Colors.light.textSecondary}
+            fontSize="14"
+            fontWeight="600"
+            textAnchor="middle"
+            alignmentBaseline="middle"
+          >
+            {speedValue}
+          </SvgText>
+        );
+      }
+
+      // Minor ticks
+      if (i < majorTicks) {
+        for (let j = 1; j < minorTicksPerMajor; j++) {
+          const minorAngle = angle + (j * 270) / majorTicks / minorTicksPerMajor;
+          const minorStartRadius = RADIUS;
+          const minorEndRadius = RADIUS - 10;
+
+          const mx1 = CENTER + minorStartRadius * Math.cos(((minorAngle - 90) * Math.PI) / 180);
+          const my1 = CENTER + minorStartRadius * Math.sin(((minorAngle - 90) * Math.PI) / 180);
+          const mx2 = CENTER + minorEndRadius * Math.cos(((minorAngle - 90) * Math.PI) / 180);
+          const my2 = CENTER + minorEndRadius * Math.sin(((minorAngle - 90) * Math.PI) / 180);
+
+          ticks.push(
+            <Line
+              key={`minor-${i}-${j}`}
+              x1={mx1}
+              y1={my1}
+              x2={mx2}
+              y2={my2}
+              stroke={Colors.light.divider}
+              strokeWidth={1}
+            />
+          );
+        }
+      }
+    }
+
+    return ticks;
+  };
+
+  // Get speed color based on percentage
+  const getSpeedColor = () => {
+    if (speedPercentage < 0.5) return Colors.light.success;
+    if (speedPercentage < 0.75) return Colors.light.warning;
+    return Colors.light.error;
+  };
+
+  return (
+    <View style={styles.container}>
+      <Svg width={GAUGE_SIZE} height={GAUGE_SIZE}>
+        {/* Outer circle */}
+        <Circle
+          cx={CENTER}
+          cy={CENTER}
+          r={RADIUS + 5}
+          stroke={Colors.light.border}
+          strokeWidth={2}
+          fill="none"
+        />
+
+        {/* Arc background */}
+        <Circle
+          cx={CENTER}
+          cy={CENTER}
+          r={RADIUS}
+          stroke={Colors.light.backgroundSecondary}
+          strokeWidth={15}
+          fill="none"
+        />
+
+        {/* Speed arc (colored) */}
+        <Circle
+          cx={CENTER}
+          cy={CENTER}
+          r={RADIUS}
+          stroke={getSpeedColor()}
+          strokeWidth={15}
+          fill="none"
+          strokeDasharray={`${speedPercentage * RADIUS * Math.PI * 1.5} ${RADIUS * Math.PI * 2}`}
+          strokeDashoffset={RADIUS * Math.PI * 0.75}
+          strokeLinecap="round"
+        />
+
+        {/* Tick marks and labels */}
+        <G>{renderTicks()}</G>
+
+        {/* Center circle */}
+        <Circle cx={CENTER} cy={CENTER} r={15} fill={Colors.light.text} />
+
+        {/* Needle */}
+        {showNeedle && (
+          <G>
+            <Line
+              x1={CENTER}
+              y1={CENTER}
+              x2={needleX}
+              y2={needleY}
+              stroke={Colors.light.error}
+              strokeWidth={4}
+              strokeLinecap="round"
+            />
+            <Circle cx={CENTER} cy={CENTER} r={8} fill={Colors.light.error} />
+          </G>
+        )}
+      </Svg>
+
+      {/* Speed display */}
+      <View style={styles.speedDisplay}>
+        <Text style={styles.speedValue}>{Math.round(currentSpeed)}</Text>
+        <Text style={styles.speedUnit}>{unit.toUpperCase()}</Text>
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speedDisplay: {
+    position: 'absolute',
+    alignItems: 'center',
+    top: GAUGE_SIZE * 0.6,
+  },
+  speedValue: {
+    fontSize: 56,
+    fontWeight: 'bold',
+    color: Colors.light.primary,
+  },
+  speedUnit: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    marginTop: -8,
+  },
+});

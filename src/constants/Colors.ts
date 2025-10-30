@@ -1,7 +1,3 @@
-/**
- * Color Constants for Speedometer App
- * Supports Light and Dark themes
- */
 
 export const Colors = {
   light: {
