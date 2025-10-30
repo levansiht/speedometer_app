@@ -1,15 +1,15 @@
 import React, { useMemo, useCallback, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Switch, TextInput } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Switch, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme, useSpeedAlert } from '../hooks';
 import { Text } from './Text';
 import type { ColorScheme } from '../types/theme';
 
 interface SpeedAlertSettingsProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
-export function SpeedAlertSettings({ onClose }: SpeedAlertSettingsProps) {
+export function SpeedAlertSettings({ onClose }: SpeedAlertSettingsProps = {}) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { config, updateConfig } = useSpeedAlert();
@@ -20,7 +20,8 @@ export function SpeedAlertSettings({ onClose }: SpeedAlertSettingsProps) {
     const newThreshold = parseInt(threshold, 10);
     if (!isNaN(newThreshold) && newThreshold > 0 && newThreshold <= 300) {
       await updateConfig({ threshold: newThreshold });
-      onClose();
+      Alert.alert('Đã lưu', 'Cài đặt cảnh báo đã được lưu thành công');
+      if (onClose) onClose();
     }
   }, [threshold, updateConfig, onClose]);
 
@@ -34,9 +35,7 @@ export function SpeedAlertSettings({ onClose }: SpeedAlertSettingsProps) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Text variant="h3">×</Text>
-        </TouchableOpacity>
+        <View style={styles.closeButton} />
         <Text variant="h3" color="primary">
           Cài đặt cảnh báo
         </Text>

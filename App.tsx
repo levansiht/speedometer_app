@@ -1,10 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { SpeedometerScreen } from './src/components';
+import { NavigationContainer } from '@react-navigation/native';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { TripProvider } from './src/contexts/TripContext';
 import { SpeedAlertProvider } from './src/contexts/SpeedAlertContext';
+import { BottomTabNavigator } from './src/navigation/BottomTabNavigator';
 
 export default function App() {
   return (
@@ -12,10 +13,12 @@ export default function App() {
       <ThemeProvider>
         <TripProvider>
           <SpeedAlertProvider>
-            <View style={styles.container}>
-              <SpeedometerScreen />
-              <StatusBar style="auto" />
-            </View>
+            <NavigationContainer>
+              <View style={styles.container}>
+                <BottomTabNavigator />
+                <StatusBar style="auto" />
+              </View>
+            </NavigationContainer>
           </SpeedAlertProvider>
         </TripProvider>
       </ThemeProvider>

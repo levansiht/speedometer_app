@@ -9,10 +9,10 @@ import type { Trip } from '../types';
 import { convertSpeed, formatDistance } from '../constants/Units';
 
 interface TripHistoryScreenProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
-export function TripHistoryScreen({ onClose }: TripHistoryScreenProps) {
+export function TripHistoryScreen(_props: TripHistoryScreenProps = {}) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { tripHistory, deleteTripFromHistory, clearTripHistory } = useTripManager();
@@ -169,9 +169,7 @@ export function TripHistoryScreen({ onClose }: TripHistoryScreenProps) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onClose}>
-          <Text variant="h3">←</Text>
-        </TouchableOpacity>
+        <View style={styles.backButton} />
         <Text variant="h3" color="primary">
           Lịch sử chuyến đi
         </Text>

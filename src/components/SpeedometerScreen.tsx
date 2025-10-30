@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,14 +7,11 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocation, useTheme, useTripManager, useSpeedAlert } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
-import { TripHistoryScreen } from './TripHistoryScreen';
 import { SpeedAlertBanner } from './SpeedAlertBanner';
-import { SpeedAlertSettings } from './SpeedAlertSettings';
 import { Text } from './Text';
 import { SpeedUnit, PermissionStatus, TripStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
@@ -22,8 +19,6 @@ import { convertSpeed, formatDistance } from '../constants/Units';
 
 export function SpeedometerScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
-  const [showHistory, setShowHistory] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -215,12 +210,6 @@ export function SpeedometerScreen() {
             🚗 Speedometer
           </Text>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.historyButton} onPress={() => setShowHistory(true)}>
-              <Text style={styles.historyButtonText}>📊</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsButton} onPress={() => setShowSettings(true)}>
-              <Text style={styles.settingsButtonText}>⚙️</Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.themeButton} onPress={handleToggleTheme}>
               <Text style={styles.themeButtonText}>{isDark ? '☀️' : '🌙'}</Text>
             </TouchableOpacity>
@@ -326,14 +315,6 @@ export function SpeedometerScreen() {
           )}
         </View>
       </SafeAreaView>
-
-      <Modal visible={showHistory} animationType="slide" presentationStyle="fullScreen">
-        <TripHistoryScreen onClose={() => setShowHistory(false)} />
-      </Modal>
-
-      <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
-        <SpeedAlertSettings onClose={() => setShowSettings(false)} />
-      </Modal>
     </Animated.View>
   );
 }
@@ -441,32 +422,6 @@ const createStyles = (colors: ColorScheme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-    },
-    historyButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    historyButtonText: {
-      fontSize: 20,
-    },
-    settingsButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    settingsButtonText: {
-      fontSize: 20,
     },
     themeButton: {
       width: 40,
