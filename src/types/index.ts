@@ -1,8 +1,3 @@
-/**
- * Core Type Definitions for Speedometer App
- */
-
-// ==================== ENUMS ====================
 
 /**
  * Supported speed units

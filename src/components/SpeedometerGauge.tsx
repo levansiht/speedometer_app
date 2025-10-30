@@ -1,8 +1,3 @@
-/**
- * Speedometer Gauge Component
- * Beautiful circular speedometer with needle animation
- */
-
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Circle, Line, Text as SvgText, G } from 'react-native-svg';
@@ -11,8 +6,8 @@ import { SpeedUnit } from '../types';
 import { convertSpeed } from '../constants/Units';
 
 interface SpeedometerProps {
-  speed: number; // Speed in m/s
-  maxSpeed?: number; // Maximum speed for gauge (in selected unit)
+  speed: number;
+  maxSpeed?: number;
   unit?: SpeedUnit;
   showNeedle?: boolean;
 }
@@ -31,10 +26,8 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
 }) => {
   const [currentSpeed, setCurrentSpeed] = useState(0);
 
-  // Convert speed to selected unit
   const speedInUnit = convertSpeed(speed, unit);
 
-  // Smooth animation
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSpeed((prev) => {
@@ -42,23 +35,20 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
         if (Math.abs(diff) < 0.5) return speedInUnit;
         return prev + diff * 0.2;
       });
-    }, 16); // 60fps
+    }, 16);
 
     return () => clearInterval(interval);
   }, [speedInUnit]);
 
-  // Calculate needle angle (-135° to +135°, total 270°)
   const speedPercentage = Math.min(currentSpeed / maxSpeed, 1);
   const needleAngle = -135 + speedPercentage * 270;
 
-  // Calculate needle position
   const needleX = CENTER + NEEDLE_LENGTH * Math.cos(((needleAngle - 90) * Math.PI) / 180);
   const needleY = CENTER + NEEDLE_LENGTH * Math.sin(((needleAngle - 90) * Math.PI) / 180);
 
-  // Generate tick marks
   const renderTicks = () => {
     const ticks = [];
-    const majorTicks = 10; // Number of major ticks
+    const majorTicks = 10;
     const minorTicksPerMajor = 5;
 
     for (let i = 0; i <= majorTicks; i++) {
@@ -110,7 +100,6 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
         );
       }
 
-      // Minor ticks
       if (i < majorTicks) {
         for (let j = 1; j < minorTicksPerMajor; j++) {
           const minorAngle = angle + (j * 270) / majorTicks / minorTicksPerMajor;
@@ -140,7 +129,6 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
     return ticks;
   };
 
-  // Get speed color based on percentage
   const getSpeedColor = () => {
     if (speedPercentage < 0.5) return Colors.light.success;
     if (speedPercentage < 0.75) return Colors.light.warning;
@@ -150,7 +138,6 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
   return (
     <View style={styles.container}>
       <Svg width={GAUGE_SIZE} height={GAUGE_SIZE}>
-        {/* Outer circle */}
         <Circle
           cx={CENTER}
           cy={CENTER}
@@ -160,7 +147,6 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
           fill="none"
         />
 
-        {/* Arc background */}
         <Circle
           cx={CENTER}
           cy={CENTER}
@@ -170,7 +156,6 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
           fill="none"
         />
 
-        {/* Speed arc (colored) */}
         <Circle
           cx={CENTER}
           cy={CENTER}
@@ -183,13 +168,10 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
           strokeLinecap="round"
         />
 
-        {/* Tick marks and labels */}
         <G>{renderTicks()}</G>
 
-        {/* Center circle */}
         <Circle cx={CENTER} cy={CENTER} r={15} fill={Colors.light.text} />
 
-        {/* Needle */}
         {showNeedle && (
           <G>
             <Line
@@ -206,7 +188,6 @@ export const SpeedometerGauge: React.FC<SpeedometerProps> = ({
         )}
       </Svg>
 
-      {/* Speed display */}
       <View style={styles.speedDisplay}>
         <Text style={styles.speedValue}>{Math.round(currentSpeed)}</Text>
         <Text style={styles.speedUnit}>{unit.toUpperCase()}</Text>

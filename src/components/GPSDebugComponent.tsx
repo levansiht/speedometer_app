@@ -39,7 +39,6 @@ export const GPSDebugComponent: React.FC = () => {
     Alert.alert('Tracking Stopped', 'GPS tracking has been stopped');
   };
 
-  // Get speed in different units
   const speedMS = location?.coords.speed ?? 0;
   const speedKMH = convertSpeed(speedMS, SpeedUnit.KMH);
   const speedMPH = convertSpeed(speedMS, SpeedUnit.MPH);
@@ -48,7 +47,6 @@ export const GPSDebugComponent: React.FC = () => {
     <ScrollView style={styles.container}>
       <Text style={styles.title}>🎯 PHASE 2: GPS Core Testing</Text>
 
-      {/* Status Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📊 Status</Text>
         <StatusRow label="Permission" value={permission} color={getStatusColor(permission)} />
@@ -60,7 +58,6 @@ export const GPSDebugComponent: React.FC = () => {
         />
       </View>
 
-      {/* Controls Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>🎮 Controls</Text>
         <TouchableOpacity
@@ -98,7 +95,6 @@ export const GPSDebugComponent: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Location Data Section */}
       {location && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📍 Location Data</Text>
@@ -118,7 +114,6 @@ export const GPSDebugComponent: React.FC = () => {
         </View>
       )}
 
-      {/* Speed Section */}
       {location && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>⚡ Speed Data</Text>
@@ -129,7 +124,6 @@ export const GPSDebugComponent: React.FC = () => {
         </View>
       )}
 
-      {/* Error Section */}
       {error && (
         <View style={[styles.section, styles.errorSection]}>
           <Text style={styles.sectionTitle}>⚠️ Error</Text>
@@ -139,7 +133,6 @@ export const GPSDebugComponent: React.FC = () => {
         </View>
       )}
 
-      {/* Info Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>ℹ️ Info</Text>
         <Text style={styles.infoText}>
@@ -152,7 +145,6 @@ export const GPSDebugComponent: React.FC = () => {
   );
 };
 
-// Helper Components
 const StatusRow: React.FC<{ label: string; value: string; color?: string }> = ({
   label,
   value,
@@ -178,7 +170,6 @@ const DataRow: React.FC<{ label: string; value: string; unit?: string; highlight
   </View>
 );
 
-// Helper Functions
 const getStatusColor = (status: string): string => {
   switch (status) {
     case 'granted':

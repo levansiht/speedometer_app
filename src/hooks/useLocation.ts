@@ -1,8 +1,3 @@
-/**
- * useLocation Hook
- * Custom hook for GPS location tracking with TypeScript
- */
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LocationData, GPSError, PermissionStatus, GPSErrorType } from '../types';
 import { getCurrentLocation, watchLocation, getLastKnownPosition } from '../services/GPSService';
@@ -12,9 +7,6 @@ import {
   isLocationEnabled,
 } from '../services/PermissionService';
 
-/**
- * Hook configuration
- */
 interface UseLocationConfig {
   enableMockData?: boolean;
   autoStart?: boolean;
@@ -22,35 +14,24 @@ interface UseLocationConfig {
   timeInterval?: number;
 }
 
-/**
- * Hook return type
- */
 interface UseLocationReturn {
-  // Current state
   location: LocationData | null;
   permission: PermissionStatus;
   isTracking: boolean;
   error: GPSError | null;
   isLoading: boolean;
 
-  // Actions
   requestPermission: () => Promise<void>;
   startTracking: () => Promise<void>;
   stopTracking: () => void;
   getCurrentPosition: () => Promise<void>;
 
-  // Helpers
   isLocationServicesEnabled: boolean;
 }
 
-/**
- * Custom hook for location tracking
- * @param config - Optional configuration
- */
 export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn => {
   const { enableMockData = false, autoStart = false, distanceInterval, timeInterval } = config;
 
-  // State
   const [location, setLocation] = useState<LocationData | null>(null);
   const [permission, setPermission] = useState<PermissionStatus>('undetermined');
   const [isTracking, setIsTracking] = useState<boolean>(false);
@@ -58,12 +39,9 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLocationServicesEnabled, setIsLocationServicesEnabled] = useState<boolean>(true);
 
-  // Refs
   const watchSubscription = useRef<{ remove: () => void } | null>(null);
 
-  /**
-   * Check permission status on mount
-   */
+
   useEffect(() => {
     const checkPermissions = async () => {
       const status = await checkLocationPermission();
@@ -72,7 +50,6 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       const servicesEnabled = await isLocationEnabled();
       setIsLocationServicesEnabled(servicesEnabled);
 
-      // Auto-start if enabled and permission granted
       if (autoStart && status === 'granted' && servicesEnabled) {
         await startTracking();
       }
@@ -81,24 +58,16 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     checkPermissions();
   }, [autoStart]);
 
-  /**
-   * Cleanup on unmount
-   */
   useEffect(() => {
     return () => {
       stopTracking();
     };
   }, []);
-
-  /**
-   * Request location permission
-   */
   const requestPermission = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Check if location services are enabled
       const servicesEnabled = await isLocationEnabled();
       setIsLocationServicesEnabled(servicesEnabled);
 
@@ -129,9 +98,6 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     }
   }, [enableMockData]);
 
-  /**
-   * Get current position once
-   */
   const getCurrentPosition = useCallback(async (): Promise<void> => {
     if (permission !== 'granted' && !enableMockData) {
       setError({
@@ -158,11 +124,8 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     setIsLoading(false);
   }, [permission, enableMockData]);
 
-  /**
-   * Start continuous location tracking
-   */
+ 
   const startTracking = useCallback(async (): Promise<void> => {
-    // Stop existing tracking if any
     if (watchSubscription.current) {
       watchSubscription.current.remove();
     }
@@ -180,13 +143,11 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     setError(null);
 
     try {
-      // Try to get last known position first
       const lastPosition = await getLastKnownPosition();
       if (lastPosition) {
         setLocation(lastPosition);
       }
 
-      // Start watching location
       const subscription = await watchLocation(
         (data) => {
           setLocation(data);
@@ -223,9 +184,7 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     }
   }, [permission, enableMockData, distanceInterval, timeInterval]);
 
-  /**
-   * Stop location tracking
-   */
+ 
   const stopTracking = useCallback((): void => {
     if (watchSubscription.current) {
       watchSubscription.current.remove();
@@ -235,7 +194,6 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
   }, []);
 
   return {
-    // State
     location,
     permission,
     isTracking,
@@ -243,7 +201,6 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     isLoading,
     isLocationServicesEnabled,
 
-    // Actions
     requestPermission,
     startTracking,
     stopTracking,

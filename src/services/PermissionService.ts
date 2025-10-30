@@ -1,15 +1,6 @@
-/**
- * Permission Service
- * Handles all app permissions with proper error handling
- */
-
 import * as Location from 'expo-location';
 import { PermissionStatus, GPSError, GPSErrorType } from '../types';
 
-/**
- * Request location permission from user
- * @returns Permission status
- */
 export const requestLocationPermission = async (): Promise<{
   status: PermissionStatus;
   error?: GPSError;
@@ -41,10 +32,6 @@ export const requestLocationPermission = async (): Promise<{
   }
 };
 
-/**
- * Check current location permission status
- * @returns Current permission status
- */
 export const checkLocationPermission = async (): Promise<PermissionStatus> => {
   try {
     const { status } = await Location.getForegroundPermissionsAsync();
@@ -63,10 +50,6 @@ export const checkLocationPermission = async (): Promise<PermissionStatus> => {
   }
 };
 
-/**
- * Check if location services are enabled on device
- * @returns True if enabled, false otherwise
- */
 export const isLocationEnabled = async (): Promise<boolean> => {
   try {
     return await Location.hasServicesEnabledAsync();
@@ -76,16 +59,11 @@ export const isLocationEnabled = async (): Promise<boolean> => {
   }
 };
 
-/**
- * Request background location permission (for future use)
- * @returns Permission status
- */
 export const requestBackgroundLocationPermission = async (): Promise<{
   status: PermissionStatus;
   error?: GPSError;
 }> => {
   try {
-    // First check foreground permission
     const foregroundStatus = await checkLocationPermission();
     if (foregroundStatus !== 'granted') {
       return {
@@ -98,7 +76,6 @@ export const requestBackgroundLocationPermission = async (): Promise<{
       };
     }
 
-    // Request background permission
     const { status } = await Location.requestBackgroundPermissionsAsync();
 
     if (status === 'granted') {

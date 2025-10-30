@@ -1,25 +1,16 @@
-/**
- * Main Speedometer Screen
- * Shows speedometer gauge with auto GPS permission request
- */
-
 import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { useLocation } from '../hooks';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocation, useTheme } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
-import { Colors } from '../constants';
 import { SpeedUnit } from '../types';
+import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
 
 export const SpeedometerScreen: React.FC = () => {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   const {
     location,
     permission,
@@ -30,31 +21,30 @@ export const SpeedometerScreen: React.FC = () => {
     startTracking,
     stopTracking,
   } = useLocation({
-    enableMockData: true, // Enable for testing
+    enableMockData: true,
     autoStart: false,
   });
 
-  // Auto request permission on mount (only once)
+  const hasRequestedPermission = React.useRef(false);
   useEffect(() => {
     const initializeGPS = async () => {
-      if (permission === 'undetermined') {
+      if (permission === 'undetermined' && !hasRequestedPermission.current) {
+        hasRequestedPermission.current = true;
         await requestPermission();
       }
     };
 
     initializeGPS();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount
+  }, [permission, requestPermission]);
 
-  // Auto start tracking after permission granted (only once)
+  const hasStartedTracking = React.useRef(false);
   useEffect(() => {
-    if (permission === 'granted' && !isTracking) {
+    if (permission === 'granted' && !isTracking && !hasStartedTracking.current) {
+      hasStartedTracking.current = true;
       startTracking();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [permission]); // Only when permission changes
+  }, [permission, isTracking, startTracking]);
 
-  // Handle permission denied
   useEffect(() => {
     if (permission === 'denied') {
       Alert.alert(
@@ -69,9 +59,8 @@ export const SpeedometerScreen: React.FC = () => {
         ]
       );
     }
-  }, [permission]);
+  }, [permission, requestPermission]);
 
-  // Handle errors
   useEffect(() => {
     if (error) {
       Alert.alert('Lỗi GPS', error.message);
@@ -82,24 +71,21 @@ export const SpeedometerScreen: React.FC = () => {
   const speedKMH = convertSpeed(speedMS, SpeedUnit.KMH);
   const speedMPH = convertSpeed(speedMS, SpeedUnit.MPH);
 
-  // Calculate some stats (mock for now)
   const averageSpeed = speedKMH * 0.7;
   const maxSpeed = speedKMH * 1.3;
-  const distance = 0; // Will be implemented in Phase 4
+  const distance = 0; 
 
-  // Show loading screen
   if (permission === 'undetermined' || isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Đang khởi tạo GPS...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Show permission denied screen
   if (permission === 'denied') {
     return (
       <SafeAreaView style={styles.container}>
@@ -127,26 +113,22 @@ export const SpeedometerScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Main Speedometer */}
       <View style={styles.gaugeContainer}>
         <SpeedometerGauge speed={speedMS} maxSpeed={200} unit={SpeedUnit.KMH} />
       </View>
 
-      {/* Stats Cards */}
       <View style={styles.statsContainer}>
-        <StatCard label="Trung bình" value={averageSpeed.toFixed(0)} unit="km/h" />
-        <StatCard label="Tối đa" value={maxSpeed.toFixed(0)} unit="km/h" />
-        <StatCard label="Quãng đường" value={formatDistance(distance)} unit="" />
+        <StatCard label="Trung bình" value={averageSpeed.toFixed(0)} unit="km/h" styles={styles} />
+        <StatCard label="Tối đa" value={maxSpeed.toFixed(0)} unit="km/h" styles={styles} />
+        <StatCard label="Quãng đường" value={formatDistance(distance)} unit="" styles={styles} />
       </View>
 
-      {/* Additional Speed Info */}
       <View style={styles.speedInfo}>
-        <SpeedRow label="km/h" value={speedKMH.toFixed(1)} highlight />
-        <SpeedRow label="mph" value={speedMPH.toFixed(1)} />
-        <SpeedRow label="m/s" value={speedMS.toFixed(2)} />
+        <SpeedRow label="km/h" value={speedKMH.toFixed(1)} highlight styles={styles} />
+        <SpeedRow label="mph" value={speedMPH.toFixed(1)} styles={styles} />
+        <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
       </View>
 
-      {/* Control Button */}
       <TouchableOpacity
         style={[styles.controlButton, isTracking && styles.controlButtonStop]}
         onPress={isTracking ? stopTracking : startTracking}
@@ -157,12 +139,14 @@ export const SpeedometerScreen: React.FC = () => {
   );
 };
 
-// Helper Components
-const StatCard: React.FC<{ label: string; value: string; unit: string }> = ({
-  label,
-  value,
-  unit,
-}) => (
+interface StatCardProps {
+  label: string;
+  value: string;
+  unit: string;
+  styles: ReturnType<typeof createStyles>;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ label, value, unit, styles }) => (
   <View style={styles.statCard}>
     <Text style={styles.statLabel}>{label}</Text>
     <Text style={styles.statValue}>{value}</Text>
@@ -170,178 +154,182 @@ const StatCard: React.FC<{ label: string; value: string; unit: string }> = ({
   </View>
 );
 
-const SpeedRow: React.FC<{ label: string; value: string; highlight?: boolean }> = ({
-  label,
-  value,
-  highlight,
-}) => (
+interface SpeedRowProps {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  styles: ReturnType<typeof createStyles>;
+}
+
+const SpeedRow: React.FC<SpeedRowProps> = ({ label, value, highlight, styles }) => (
   <View style={styles.speedRow}>
     <Text style={styles.speedLabel}>{label}</Text>
     <Text style={[styles.speedValue, highlight && styles.speedValueHighlight]}>{value}</Text>
   </View>
 );
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.light.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: Colors.light.textSecondary,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.light.text,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: Colors.light.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: Colors.light.textInverse,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.light.primary,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.light.backgroundSecondary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.light.textSecondary,
-    marginRight: 6,
-  },
-  statusDotActive: {
-    backgroundColor: Colors.light.success,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.light.textSecondary,
-  },
-  gaugeContainer: {
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  statCard: {
-    backgroundColor: Colors.light.surface,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.light.primary,
-  },
-  statUnit: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
-  },
-  speedInfo: {
-    backgroundColor: Colors.light.surface,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  speedRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-  },
-  speedLabel: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    fontWeight: '600',
-  },
-  speedValue: {
-    fontSize: 14,
-    color: Colors.light.text,
-    fontWeight: '600',
-  },
-  speedValueHighlight: {
-    fontSize: 16,
-    color: Colors.light.primary,
-    fontWeight: 'bold',
-  },
-  controlButton: {
-    backgroundColor: Colors.light.success,
-    marginHorizontal: 20,
-    marginTop: 20,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  controlButtonStop: {
-    backgroundColor: Colors.light.error,
-  },
-  controlButtonText: {
-    color: Colors.light.textInverse,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-});
+const createStyles = (colors: ColorScheme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: 16,
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    errorIcon: {
+      fontSize: 64,
+      marginBottom: 16,
+    },
+    errorTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    errorMessage: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: 24,
+    },
+    retryButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 32,
+      paddingVertical: 12,
+      borderRadius: 8,
+    },
+    retryButtonText: {
+      color: colors.textInverse,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: colors.primary,
+    },
+    statusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.backgroundSecondary,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+    },
+    statusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.textSecondary,
+      marginRight: 6,
+    },
+    statusDotActive: {
+      backgroundColor: colors.success,
+    },
+    statusText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    gaugeContainer: {
+      alignItems: 'center',
+      marginVertical: 20,
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      paddingHorizontal: 20,
+      marginBottom: 20,
+    },
+    statCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+      flex: 1,
+      marginHorizontal: 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    statLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginBottom: 4,
+    },
+    statValue: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: colors.primary,
+    },
+    statUnit: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    speedInfo: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      marginHorizontal: 20,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    speedRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+    },
+    speedLabel: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    speedValue: {
+      fontSize: 14,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    speedValueHighlight: {
+      fontSize: 16,
+      color: colors.primary,
+      fontWeight: 'bold',
+    },
+    controlButton: {
+      backgroundColor: colors.success,
+      marginHorizontal: 20,
+      marginTop: 20,
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    controlButtonStop: {
+      backgroundColor: colors.error,
+    },
+    controlButtonText: {
+      color: colors.textInverse,
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+  });

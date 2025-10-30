@@ -121,9 +121,6 @@ export const getSpeedColor = (
   return colors.speedDanger;
 };
 
-/**
- * Opacity helper
- */
 export const withOpacity = (color: string, opacity: number): string => {
   return `${color}${Math.round(opacity * 255)
     .toString(16)
