@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
@@ -12,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocation, useTheme } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
+import { Text } from './Text';
 import { SpeedUnit, PermissionStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
@@ -121,7 +121,9 @@ export function SpeedometerScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Đang khởi tạo GPS...</Text>
+          <Text variant="body" color="secondary" style={styles.loadingText}>
+            Đang khởi tạo GPS...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -132,12 +134,16 @@ export function SpeedometerScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorIcon}>🚫</Text>
-          <Text style={styles.errorTitle}>Không có quyền truy cập GPS</Text>
-          <Text style={styles.errorMessage}>
+          <Text variant="h3" color="primary" style={styles.errorTitle}>
+            Không có quyền truy cập GPS
+          </Text>
+          <Text variant="body" color="secondary" style={styles.errorMessage}>
             Vui lòng cấp quyền truy cập vị trí để sử dụng ứng dụng
           </Text>
           <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-            <Text style={styles.retryButtonText}>Thử lại</Text>
+            <Text variant="button" color="inverse">
+              Thử lại
+            </Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -148,14 +154,18 @@ export function SpeedometerScreen() {
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <SafeAreaView style={styles.flex}>
         <View style={styles.header}>
-          <Text style={styles.title}>🚗 Speedometer</Text>
+          <Text variant="h2" color="primary">
+            🚗 Speedometer
+          </Text>
           <View style={styles.headerRight}>
             <TouchableOpacity style={styles.themeButton} onPress={handleToggleTheme}>
               <Text style={styles.themeButtonText}>{isDark ? '☀️' : '🌙'}</Text>
             </TouchableOpacity>
             <View style={styles.statusBadge}>
               <View style={[styles.statusDot, isTracking && styles.statusDotActive]} />
-              <Text style={styles.statusText}>{isTracking ? 'Tracking' : 'Paused'}</Text>
+              <Text variant="caption" color="secondary" style={styles.statusText}>
+                {isTracking ? 'Tracking' : 'Paused'}
+              </Text>
             </View>
           </View>
         </View>
@@ -185,7 +195,9 @@ export function SpeedometerScreen() {
           style={[styles.controlButton, isTracking && styles.controlButtonStop]}
           onPress={handleToggleTracking}
         >
-          <Text style={styles.controlButtonText}>{isTracking ? '⏹️ Dừng' : '▶️ Bắt đầu'}</Text>
+          <Text variant="buttonLarge" color="inverse">
+            {isTracking ? '⏹️ Dừng' : '▶️ Bắt đầu'}
+          </Text>
         </TouchableOpacity>
       </SafeAreaView>
     </Animated.View>
@@ -202,9 +214,17 @@ interface StatCardProps {
 function StatCard({ label, value, unit, styles }: StatCardProps) {
   return (
     <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-      {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
+      <Text variant="caption" color="secondary">
+        {label}
+      </Text>
+      <Text variant="h4" color="primary" style={styles.statValue}>
+        {value}
+      </Text>
+      {unit ? (
+        <Text variant="caption" color="secondary">
+          {unit}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -219,8 +239,16 @@ interface SpeedRowProps {
 function SpeedRow({ label, value, highlight, styles }: SpeedRowProps) {
   return (
     <View style={styles.speedRow}>
-      <Text style={styles.speedLabel}>{label}</Text>
-      <Text style={[styles.speedValue, highlight && styles.speedValueHighlight]}>{value}</Text>
+      <Text variant="bodySmall" color="secondary" style={styles.speedLabel}>
+        {label}
+      </Text>
+      <Text
+        variant={highlight ? 'subtitle1' : 'bodySmall'}
+        color={highlight ? 'primary' : undefined}
+        style={styles.speedValue}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
@@ -241,8 +269,6 @@ const createStyles = (colors: ColorScheme) =>
     },
     loadingText: {
       marginTop: 16,
-      fontSize: 16,
-      color: colors.textSecondary,
     },
     errorContainer: {
       flex: 1,
@@ -255,15 +281,10 @@ const createStyles = (colors: ColorScheme) =>
       marginBottom: 16,
     },
     errorTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: colors.text,
       marginBottom: 8,
       textAlign: 'center',
     },
     errorMessage: {
-      fontSize: 14,
-      color: colors.textSecondary,
       textAlign: 'center',
       marginBottom: 24,
     },
@@ -273,11 +294,7 @@ const createStyles = (colors: ColorScheme) =>
       paddingVertical: 12,
       borderRadius: 8,
     },
-    retryButtonText: {
-      color: colors.textInverse,
-      fontSize: 16,
-      fontWeight: '600',
-    },
+
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -285,11 +302,7 @@ const createStyles = (colors: ColorScheme) =>
       paddingHorizontal: 20,
       paddingVertical: 16,
     },
-    title: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: colors.primary,
-    },
+
     headerRight: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -327,9 +340,7 @@ const createStyles = (colors: ColorScheme) =>
       backgroundColor: colors.success,
     },
     statusText: {
-      fontSize: 12,
       fontWeight: '600',
-      color: colors.textSecondary,
     },
     gaugeContainer: {
       alignItems: 'center',
@@ -351,20 +362,8 @@ const createStyles = (colors: ColorScheme) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
-    statLabel: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginBottom: 4,
-    },
     statValue: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: colors.primary,
-    },
-    statUnit: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginTop: 2,
+      marginVertical: 4,
     },
     speedInfo: {
       backgroundColor: colors.surface,
@@ -380,19 +379,10 @@ const createStyles = (colors: ColorScheme) =>
       paddingVertical: 8,
     },
     speedLabel: {
-      fontSize: 14,
-      color: colors.textSecondary,
       fontWeight: '600',
     },
     speedValue: {
-      fontSize: 14,
-      color: colors.text,
       fontWeight: '600',
-    },
-    speedValueHighlight: {
-      fontSize: 16,
-      color: colors.primary,
-      fontWeight: 'bold',
     },
     controlButton: {
       backgroundColor: colors.success,
@@ -404,10 +394,5 @@ const createStyles = (colors: ColorScheme) =>
     },
     controlButtonStop: {
       backgroundColor: colors.error,
-    },
-    controlButtonText: {
-      color: colors.textInverse,
-      fontSize: 18,
-      fontWeight: 'bold',
     },
   });
