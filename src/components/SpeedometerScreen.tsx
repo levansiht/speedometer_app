@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,17 +7,23 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocation, useTheme } from '../hooks';
+import { useLocation, useTheme, useTripManager, useSpeedAlert } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
+import { TripHistoryScreen } from './TripHistoryScreen';
+import { SpeedAlertBanner } from './SpeedAlertBanner';
+import { SpeedAlertSettings } from './SpeedAlertSettings';
 import { Text } from './Text';
-import { SpeedUnit, PermissionStatus } from '../types';
+import { SpeedUnit, PermissionStatus, TripStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
 
 export function SpeedometerScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
+  const [showHistory, setShowHistory] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -42,19 +48,22 @@ export function SpeedometerScreen() {
   const {
     location,
     permission,
-    isTracking,
     error,
     isLoading,
     requestPermission,
-    startTracking,
-    stopTracking,
+    startTracking: startGPSTracking,
   } = useLocation({
     enableMockData: true,
     autoStart: false,
   });
 
+  const { currentTrip, startTrip, pauseTrip, resumeTrip, stopTrip, updateLocation } =
+    useTripManager();
+
+  const { config: alertConfig, isAlertActive, checkSpeed } = useSpeedAlert();
+
   const hasRequestedPermission = useRef(false);
-  const hasStartedTracking = useRef(false);
+  const hasStartedGPS = useRef(false);
 
   useEffect(() => {
     const initializeGPS = async () => {
@@ -68,11 +77,24 @@ export function SpeedometerScreen() {
   }, [permission, requestPermission]);
 
   useEffect(() => {
-    if (permission === PermissionStatus.GRANTED && !isTracking && !hasStartedTracking.current) {
-      hasStartedTracking.current = true;
-      startTracking();
+    if (permission === PermissionStatus.GRANTED && !hasStartedGPS.current) {
+      hasStartedGPS.current = true;
+      startGPSTracking();
     }
-  }, [permission, isTracking, startTracking]);
+  }, [permission, startGPSTracking]);
+
+  useEffect(() => {
+    if (location && currentTrip?.status === TripStatus.RUNNING) {
+      updateLocation(location);
+    }
+  }, [location, currentTrip?.status, updateLocation]);
+
+  useEffect(() => {
+    if (location && alertConfig.enabled) {
+      const speedMS = location.coords.speed ?? 0;
+      checkSpeed(speedMS);
+    }
+  }, [location, alertConfig.enabled, checkSpeed]);
 
   useEffect(() => {
     if (permission === PermissionStatus.DENIED) {
@@ -100,21 +122,56 @@ export function SpeedometerScreen() {
   const speedKMH = useMemo(() => convertSpeed(speedMS, SpeedUnit.KMH), [speedMS]);
   const speedMPH = useMemo(() => convertSpeed(speedMS, SpeedUnit.MPH), [speedMS]);
 
-  const averageSpeed = useMemo(() => speedKMH * 0.7, [speedKMH]);
-  const maxSpeed = useMemo(() => speedKMH * 1.3, [speedKMH]);
-  const distance = 0;
+  const tripStats = useMemo(() => {
+    if (!currentTrip) {
+      return {
+        distance: 0,
+        averageSpeed: 0,
+        maxSpeed: 0,
+        duration: 0,
+      };
+    }
+
+    return {
+      distance: currentTrip.stats.distance,
+      averageSpeed: convertSpeed(currentTrip.stats.averageSpeed, SpeedUnit.KMH),
+      maxSpeed: convertSpeed(currentTrip.stats.maxSpeed, SpeedUnit.KMH),
+      duration: currentTrip.stats.duration,
+    };
+  }, [currentTrip]);
+
+  const tripStatus = currentTrip?.status ?? TripStatus.IDLE;
+  const isRunning = tripStatus === TripStatus.RUNNING;
 
   const handleRetry = useCallback(() => {
     requestPermission();
   }, [requestPermission]);
 
-  const handleToggleTracking = useCallback(() => {
-    if (isTracking) {
-      stopTracking();
-    } else {
-      startTracking();
-    }
-  }, [isTracking, stopTracking, startTracking]);
+  const handleStartTrip = useCallback(() => {
+    startTrip();
+  }, [startTrip]);
+
+  const handlePauseTrip = useCallback(() => {
+    pauseTrip();
+  }, [pauseTrip]);
+
+  const handleResumeTrip = useCallback(() => {
+    resumeTrip();
+  }, [resumeTrip]);
+
+  const handleStopTrip = useCallback(async () => {
+    Alert.alert('Kết thúc chuyến đi', 'Bạn có chắc muốn kết thúc chuyến đi này?', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Kết thúc',
+        style: 'destructive',
+        onPress: async () => {
+          await stopTrip();
+          Alert.alert('Thành công', 'Chuyến đi đã được lưu vào lịch sử');
+        },
+      },
+    ]);
+  }, [stopTrip]);
 
   if (permission === PermissionStatus.UNDETERMINED || isLoading) {
     return (
@@ -158,17 +215,33 @@ export function SpeedometerScreen() {
             🚗 Speedometer
           </Text>
           <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.historyButton} onPress={() => setShowHistory(true)}>
+              <Text style={styles.historyButtonText}>📊</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsButton} onPress={() => setShowSettings(true)}>
+              <Text style={styles.settingsButtonText}>⚙️</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.themeButton} onPress={handleToggleTheme}>
               <Text style={styles.themeButtonText}>{isDark ? '☀️' : '🌙'}</Text>
             </TouchableOpacity>
             <View style={styles.statusBadge}>
-              <View style={[styles.statusDot, isTracking && styles.statusDotActive]} />
+              <View style={[styles.statusDot, isRunning && styles.statusDotActive]} />
               <Text variant="caption" color="secondary" style={styles.statusText}>
-                {isTracking ? 'Tracking' : 'Paused'}
+                {tripStatus === TripStatus.RUNNING
+                  ? 'Recording'
+                  : tripStatus === TripStatus.PAUSED
+                  ? 'Paused'
+                  : 'Ready'}
               </Text>
             </View>
           </View>
         </View>
+
+        <SpeedAlertBanner
+          isActive={isAlertActive}
+          currentSpeed={speedKMH}
+          threshold={alertConfig.threshold}
+        />
 
         <View style={styles.gaugeContainer}>
           <SpeedometerGauge speed={speedMS} maxSpeed={200} unit={SpeedUnit.KMH} />
@@ -177,12 +250,22 @@ export function SpeedometerScreen() {
         <View style={styles.statsContainer}>
           <StatCard
             label="Trung bình"
-            value={averageSpeed.toFixed(0)}
+            value={tripStats.averageSpeed.toFixed(0)}
             unit="km/h"
             styles={styles}
           />
-          <StatCard label="Tối đa" value={maxSpeed.toFixed(0)} unit="km/h" styles={styles} />
-          <StatCard label="Quãng đường" value={formatDistance(distance)} unit="" styles={styles} />
+          <StatCard
+            label="Tối đa"
+            value={tripStats.maxSpeed.toFixed(0)}
+            unit="km/h"
+            styles={styles}
+          />
+          <StatCard
+            label="Quãng đường"
+            value={formatDistance(tripStats.distance)}
+            unit=""
+            styles={styles}
+          />
         </View>
 
         <View style={styles.speedInfo}>
@@ -191,15 +274,66 @@ export function SpeedometerScreen() {
           <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
         </View>
 
-        <TouchableOpacity
-          style={[styles.controlButton, isTracking && styles.controlButtonStop]}
-          onPress={handleToggleTracking}
-        >
-          <Text variant="buttonLarge" color="inverse">
-            {isTracking ? '⏹️ Dừng' : '▶️ Bắt đầu'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.tripControls}>
+          {tripStatus === TripStatus.IDLE && (
+            <TouchableOpacity style={styles.controlButton} onPress={handleStartTrip}>
+              <Text variant="buttonLarge" color="inverse">
+                ▶️ Bắt đầu chuyến đi
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {tripStatus === TripStatus.RUNNING && (
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.controlButton, styles.controlButtonPause, styles.buttonInRow]}
+                onPress={handlePauseTrip}
+              >
+                <Text variant="button" color="inverse">
+                  ⏸️ Tạm dừng
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.controlButton, styles.controlButtonStop, styles.buttonInRow]}
+                onPress={handleStopTrip}
+              >
+                <Text variant="button" color="inverse">
+                  ⏹️ Kết thúc
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {tripStatus === TripStatus.PAUSED && (
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.controlButton, styles.controlButtonResume, styles.buttonInRow]}
+                onPress={handleResumeTrip}
+              >
+                <Text variant="button" color="inverse">
+                  ▶️ Tiếp tục
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.controlButton, styles.controlButtonStop, styles.buttonInRow]}
+                onPress={handleStopTrip}
+              >
+                <Text variant="button" color="inverse">
+                  ⏹️ Kết thúc
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </SafeAreaView>
+
+      <Modal visible={showHistory} animationType="slide" presentationStyle="fullScreen">
+        <TripHistoryScreen onClose={() => setShowHistory(false)} />
+      </Modal>
+
+      <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
+        <SpeedAlertSettings onClose={() => setShowSettings(false)} />
+      </Modal>
     </Animated.View>
   );
 }
@@ -308,6 +442,32 @@ const createStyles = (colors: ColorScheme) =>
       alignItems: 'center',
       gap: 12,
     },
+    historyButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    historyButtonText: {
+      fontSize: 20,
+    },
+    settingsButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    settingsButtonText: {
+      fontSize: 20,
+    },
     themeButton: {
       width: 40,
       height: 40,
@@ -384,13 +544,30 @@ const createStyles = (colors: ColorScheme) =>
     speedValue: {
       fontWeight: '600',
     },
-    controlButton: {
-      backgroundColor: colors.success,
+    tripControls: {
       marginHorizontal: 20,
       marginTop: 20,
+    },
+    buttonRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    controlButton: {
+      backgroundColor: colors.success,
       paddingVertical: 16,
+      paddingHorizontal: 24,
       borderRadius: 12,
       alignItems: 'center',
+      minHeight: 56,
+    },
+    buttonInRow: {
+      flex: 1,
+    },
+    controlButtonPause: {
+      backgroundColor: colors.warning,
+    },
+    controlButtonResume: {
+      backgroundColor: colors.success,
     },
     controlButtonStop: {
       backgroundColor: colors.error,
