@@ -60,7 +60,6 @@ export function SpeedometerScreen() {
     requestPermission,
     startTracking: startGPSTracking,
   } = useLocation({
-    enableMockData: false,
     autoStart: false,
   });
 

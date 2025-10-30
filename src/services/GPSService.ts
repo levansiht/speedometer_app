@@ -1,18 +1,17 @@
 import * as Location from 'expo-location';
 import { LocationData, GPSError, GPSErrorType, Coordinates } from '../types';
 import { GPS_CONFIG } from '../constants';
+
 interface GPSServiceConfig {
   accuracy: Location.LocationAccuracy;
   distanceInterval: number;
   timeInterval: number;
-  enableMockData?: boolean;
 }
 
 const DEFAULT_CONFIG: GPSServiceConfig = {
   accuracy: Location.LocationAccuracy.BestForNavigation,
   distanceInterval: GPS_CONFIG.MIN_DISTANCE,
   timeInterval: GPS_CONFIG.UPDATE_INTERVAL,
-  enableMockData: false,
 };
 
 export const getCurrentLocation = async (
@@ -21,10 +20,6 @@ export const getCurrentLocation = async (
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
 
   try {
-    if (finalConfig.enableMockData) {
-      return { data: generateMockLocation() };
-    }
-
     const location = await Location.getCurrentPositionAsync({
       accuracy: finalConfig.accuracy,
     });
@@ -53,15 +48,7 @@ export const watchLocation = async (
 ): Promise<{ remove: () => void } | null> => {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
 
-  console.log('GPSService.watchLocation: Starting with config:', finalConfig);
-
   try {
-    if (finalConfig.enableMockData) {
-      console.log('GPSService.watchLocation: Using mock data');
-      return startMockLocationUpdates(callback, finalConfig.timeInterval);
-    }
-
-    console.log('GPSService.watchLocation: Calling Location.watchPositionAsync...');
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: finalConfig.accuracy,
@@ -69,11 +56,6 @@ export const watchLocation = async (
         timeInterval: finalConfig.timeInterval,
       },
       (location) => {
-        console.log('GPSService.watchLocation: Location update received:', {
-          lat: location.coords.latitude,
-          lng: location.coords.longitude,
-          accuracy: location.coords.accuracy,
-        });
         callback({
           coords: mapCoordinates(location.coords),
           timestamp: location.timestamp,
@@ -81,7 +63,6 @@ export const watchLocation = async (
       }
     );
 
-    console.log('GPSService.watchLocation: Subscription created successfully');
     return subscription;
   } catch (error) {
     errorCallback({
@@ -95,23 +76,16 @@ export const watchLocation = async (
 
 export const getLastKnownPosition = async (): Promise<LocationData | null> => {
   try {
-    console.log('GPSService.getLastKnownPosition: Getting last known position...');
     const location = await Location.getLastKnownPositionAsync();
     if (!location) {
-      console.log('GPSService.getLastKnownPosition: No last known position');
       return null;
     }
 
-    console.log('GPSService.getLastKnownPosition: Got position:', {
-      lat: location.coords.latitude,
-      lng: location.coords.longitude,
-    });
     return {
       coords: mapCoordinates(location.coords),
       timestamp: location.timestamp,
     };
   } catch (error) {
-    console.error('GPSService.getLastKnownPosition: Error:', error);
     return null;
   }
 };
@@ -158,53 +132,3 @@ const mapCoordinates = (coords: Location.LocationObjectCoords): Coordinates => (
   heading: coords.heading,
   speed: coords.speed,
 });
-
-let mockLocationInterval: NodeJS.Timeout | null = null;
-let mockSpeed = 0;
-let mockLatitude = 10.762622;
-let mockLongitude = 106.660172;
-
-const generateMockLocation = (): LocationData => {
-  mockSpeed += (Math.random() - 0.5) * 2; // Random speed change
-  mockSpeed = Math.max(0, Math.min(30, mockSpeed)); // Keep between 0-30 m/s
-
-  mockLatitude += (Math.random() - 0.5) * 0.0001;
-  mockLongitude += (Math.random() - 0.5) * 0.0001;
-
-  return {
-    coords: {
-      latitude: mockLatitude,
-      longitude: mockLongitude,
-      altitude: 10 + Math.random() * 5,
-      accuracy: 5 + Math.random() * 5,
-      altitudeAccuracy: 3,
-      heading: Math.random() * 360,
-      speed: mockSpeed,
-    },
-    timestamp: Date.now(),
-  };
-};
-
-const startMockLocationUpdates = (
-  callback: (data: LocationData) => void,
-  interval: number
-): { remove: () => void } => {
-  mockLocationInterval = setInterval(() => {
-    callback(generateMockLocation());
-  }, interval);
-
-  return {
-    remove: () => {
-      if (mockLocationInterval) {
-        clearInterval(mockLocationInterval);
-        mockLocationInterval = null;
-      }
-    },
-  };
-};
-
-export const setMockLocation = (latitude: number, longitude: number, speed: number = 0): void => {
-  mockLatitude = latitude;
-  mockLongitude = longitude;
-  mockSpeed = speed;
-};

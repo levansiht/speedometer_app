@@ -143,13 +143,6 @@ export function TripHistoryScreen(_props: TripHistoryScreenProps = {}) {
     ]);
   }, [tripHistory.length, clearTripHistory]);
 
-  // Debug function to view database
-  const handleDebugDatabase = useCallback(async () => {
-    const { db } = await import('../services/DatabaseService');
-    await db.debugDatabase();
-    Alert.alert('Database Debug', 'Kiểm tra console để xem dữ liệu database');
-  }, []);
-
   const formatDuration = useCallback((seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -266,12 +259,6 @@ export function TripHistoryScreen(_props: TripHistoryScreenProps = {}) {
           📊 Lịch sử
         </Text>
         <View style={styles.headerButtons}>
-          {/* Debug button - for development only */}
-          <TouchableOpacity style={styles.debugButton} onPress={handleDebugDatabase}>
-            <Text variant="bodySmall" color="primary">
-              🔍 Debug DB
-            </Text>
-          </TouchableOpacity>
           {tripHistory.length > 0 && (
             <TouchableOpacity style={styles.clearButton} onPress={handleClearAll}>
               <Text variant="bodySmall" color="error">
@@ -421,14 +408,6 @@ const createStyles = (colors: ColorScheme, screenWidth: number, bottomInset: num
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-    },
-    debugButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 6,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.primary,
     },
     clearButton: {
       paddingHorizontal: 12,

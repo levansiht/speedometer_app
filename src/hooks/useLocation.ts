@@ -8,7 +8,6 @@ import {
 } from '../services/PermissionService';
 
 interface UseLocationConfig {
-  enableMockData?: boolean;
   autoStart?: boolean;
   distanceInterval?: number;
   timeInterval?: number;
@@ -30,7 +29,7 @@ interface UseLocationReturn {
 }
 
 export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn => {
-  const { enableMockData = false, autoStart = false, distanceInterval, timeInterval } = config;
+  const { autoStart = false, distanceInterval, timeInterval } = config;
 
   const [location, setLocation] = useState<LocationData | null>(null);
   const [permission, setPermission] = useState<PermissionStatus>(PermissionStatus.UNDETERMINED);
@@ -69,7 +68,7 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       const servicesEnabled = await isLocationEnabled();
       setIsLocationServicesEnabled(servicesEnabled);
 
-      if (!servicesEnabled && !enableMockData) {
+      if (!servicesEnabled) {
         setError({
           type: GPSErrorType.LOCATION_UNAVAILABLE,
           message: 'Location services are disabled on this device',
@@ -94,10 +93,10 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     } finally {
       setIsLoading(false);
     }
-  }, [enableMockData]);
+  }, []);
 
   const getCurrentPosition = useCallback(async (): Promise<void> => {
-    if (permission !== PermissionStatus.GRANTED && !enableMockData) {
+    if (permission !== PermissionStatus.GRANTED) {
       setError({
         type: GPSErrorType.PERMISSION_DENIED,
         message: 'Location permission not granted',
@@ -109,7 +108,7 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     setIsLoading(true);
     setError(null);
 
-    const result = await getCurrentLocation({ enableMockData });
+    const result = await getCurrentLocation();
 
     if (result.data) {
       setLocation(result.data);
@@ -120,18 +119,14 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     }
 
     setIsLoading(false);
-  }, [permission, enableMockData]);
+  }, [permission]);
 
   const startTracking = useCallback(async (): Promise<void> => {
-    console.log('useLocation.startTracking: Called', { permission, enableMockData, isTracking });
-
     if (watchSubscription.current) {
-      console.log('useLocation.startTracking: Removing existing subscription');
       watchSubscription.current.remove();
     }
 
-    if (permission !== PermissionStatus.GRANTED && !enableMockData) {
-      console.error('useLocation.startTracking: Permission denied');
+    if (permission !== PermissionStatus.GRANTED) {
       setError({
         type: GPSErrorType.PERMISSION_DENIED,
         message: 'Location permission not granted',
@@ -140,19 +135,15 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       return;
     }
 
-    console.log('useLocation.startTracking: Starting tracking...');
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('useLocation.startTracking: Getting last known position...');
       const lastPosition = await getLastKnownPosition();
       if (lastPosition) {
-        console.log('useLocation.startTracking: Got last position:', lastPosition.coords);
         setLocation(lastPosition);
       }
 
-      console.log('useLocation.startTracking: Setting up watch location...');
       const subscription = await watchLocation(
         (data) => {
           setLocation(data);
@@ -162,18 +153,15 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
           setError(err);
         },
         {
-          enableMockData,
           distanceInterval,
           timeInterval,
         }
       );
 
       if (subscription) {
-        console.log('useLocation.startTracking: Watch location started successfully');
         watchSubscription.current = subscription;
         setIsTracking(true);
       } else {
-        console.error('useLocation.startTracking: Failed to get subscription');
         setError({
           type: GPSErrorType.LOCATION_UNAVAILABLE,
           message: 'Failed to start location tracking',
@@ -181,17 +169,15 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
         });
       }
     } catch (err) {
-      console.error('useLocation.startTracking: Error:', err);
       setError({
         type: GPSErrorType.UNKNOWN,
         message: err instanceof Error ? err.message : 'Unknown error',
         timestamp: Date.now(),
       });
     } finally {
-      console.log('useLocation.startTracking: Finished');
       setIsLoading(false);
     }
-  }, [permission, enableMockData, distanceInterval, timeInterval]);
+  }, [permission, distanceInterval, timeInterval]);
 
   const stopTracking = useCallback((): void => {
     if (watchSubscription.current) {

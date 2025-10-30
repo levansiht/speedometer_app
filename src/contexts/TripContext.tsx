@@ -43,11 +43,10 @@ export function TripProvider({ children }: TripProviderProps) {
     const initDB = async () => {
       try {
         await db.initialize();
-        console.log('Database initialized successfully');
         setIsDbReady(true);
       } catch (error) {
         console.error('Failed to initialize database:', error);
-        setIsDbReady(true); 
+        setIsDbReady(true);
       }
     };
 
