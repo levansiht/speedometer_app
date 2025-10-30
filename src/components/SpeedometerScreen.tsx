@@ -226,6 +226,7 @@ export function SpeedometerScreen() {
           </View>
         </View>
 
+        {/* Alert Banner - Absolute positioned, won't affect layout */}
         <SpeedAlertBanner
           isActive={isAlertActive}
           currentSpeed={speedKMH}
