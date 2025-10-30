@@ -4,4 +4,5 @@ export * from './SpeedometerScreen';
 export * from './TripHistoryScreen';
 export * from './SpeedAlertBanner';
 export * from './SpeedAlertSettings';
+export * from './MapScreen';
 export * from './Text';

@@ -53,11 +53,15 @@ export const watchLocation = async (
 ): Promise<{ remove: () => void } | null> => {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
 
+  console.log('GPSService.watchLocation: Starting with config:', finalConfig);
+
   try {
     if (finalConfig.enableMockData) {
+      console.log('GPSService.watchLocation: Using mock data');
       return startMockLocationUpdates(callback, finalConfig.timeInterval);
     }
 
+    console.log('GPSService.watchLocation: Calling Location.watchPositionAsync...');
     const subscription = await Location.watchPositionAsync(
       {
         accuracy: finalConfig.accuracy,
@@ -65,6 +69,11 @@ export const watchLocation = async (
         timeInterval: finalConfig.timeInterval,
       },
       (location) => {
+        console.log('GPSService.watchLocation: Location update received:', {
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+          accuracy: location.coords.accuracy,
+        });
         callback({
           coords: mapCoordinates(location.coords),
           timestamp: location.timestamp,
@@ -72,6 +81,7 @@ export const watchLocation = async (
       }
     );
 
+    console.log('GPSService.watchLocation: Subscription created successfully');
     return subscription;
   } catch (error) {
     errorCallback({
@@ -85,15 +95,23 @@ export const watchLocation = async (
 
 export const getLastKnownPosition = async (): Promise<LocationData | null> => {
   try {
+    console.log('GPSService.getLastKnownPosition: Getting last known position...');
     const location = await Location.getLastKnownPositionAsync();
-    if (!location) return null;
+    if (!location) {
+      console.log('GPSService.getLastKnownPosition: No last known position');
+      return null;
+    }
 
+    console.log('GPSService.getLastKnownPosition: Got position:', {
+      lat: location.coords.latitude,
+      lng: location.coords.longitude,
+    });
     return {
       coords: mapCoordinates(location.coords),
       timestamp: location.timestamp,
     };
   } catch (error) {
-    console.error('Error getting last known position:', error);
+    console.error('GPSService.getLastKnownPosition: Error:', error);
     return null;
   }
 };
@@ -140,7 +158,6 @@ const mapCoordinates = (coords: Location.LocationObjectCoords): Coordinates => (
   heading: coords.heading,
   speed: coords.speed,
 });
-
 
 let mockLocationInterval: NodeJS.Timeout | null = null;
 let mockSpeed = 0;

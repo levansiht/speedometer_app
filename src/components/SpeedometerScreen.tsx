@@ -7,8 +7,9 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocation, useTheme, useTripManager, useSpeedAlert } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
 import { SpeedAlertBanner } from './SpeedAlertBanner';
@@ -19,7 +20,8 @@ import { convertSpeed, formatDistance } from '../constants/Units';
 
 export function SpeedometerScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(colors, insets.bottom), [colors, insets.bottom]);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -48,7 +50,7 @@ export function SpeedometerScreen() {
     requestPermission,
     startTracking: startGPSTracking,
   } = useLocation({
-    enableMockData: true,
+    enableMockData: false, // Changed to false for real GPS data
     autoStart: false,
   });
 
@@ -113,7 +115,7 @@ export function SpeedometerScreen() {
     }
   }, [error]);
 
-  const speedMS = location?.coords.speed ?? 0;
+  const speedMS = Math.max(0, location?.coords.speed ?? 0); // Ensure speed >= 0
   const speedKMH = useMemo(() => convertSpeed(speedMS, SpeedUnit.KMH), [speedMS]);
   const speedMPH = useMemo(() => convertSpeed(speedMS, SpeedUnit.MPH), [speedMS]);
 
@@ -203,29 +205,8 @@ export function SpeedometerScreen() {
   }
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <SafeAreaView style={styles.flex}>
-        <View style={styles.header}>
-          <Text variant="h2" color="primary">
-            🚗 Speedometer
-          </Text>
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.themeButton} onPress={handleToggleTheme}>
-              <Text style={styles.themeButtonText}>{isDark ? '☀️' : '🌙'}</Text>
-            </TouchableOpacity>
-            <View style={styles.statusBadge}>
-              <View style={[styles.statusDot, isRunning && styles.statusDotActive]} />
-              <Text variant="caption" color="secondary" style={styles.statusText}>
-                {tripStatus === TripStatus.RUNNING
-                  ? 'Recording'
-                  : tripStatus === TripStatus.PAUSED
-                  ? 'Paused'
-                  : 'Ready'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <Animated.View style={[styles.flex, { opacity: fadeAnim }]}>
         {/* Alert Banner - Absolute positioned, won't affect layout */}
         <SpeedAlertBanner
           isActive={isAlertActive}
@@ -233,90 +214,117 @@ export function SpeedometerScreen() {
           threshold={alertConfig.threshold}
         />
 
-        <View style={styles.gaugeContainer}>
-          <SpeedometerGauge speed={speedMS} maxSpeed={200} unit={SpeedUnit.KMH} />
-        </View>
-
-        <View style={styles.statsContainer}>
-          <StatCard
-            label="Trung bình"
-            value={tripStats.averageSpeed.toFixed(0)}
-            unit="km/h"
-            styles={styles}
-          />
-          <StatCard
-            label="Tối đa"
-            value={tripStats.maxSpeed.toFixed(0)}
-            unit="km/h"
-            styles={styles}
-          />
-          <StatCard
-            label="Quãng đường"
-            value={formatDistance(tripStats.distance)}
-            unit=""
-            styles={styles}
-          />
-        </View>
-
-        <View style={styles.speedInfo}>
-          <SpeedRow label="km/h" value={speedKMH.toFixed(1)} highlight styles={styles} />
-          <SpeedRow label="mph" value={speedMPH.toFixed(1)} styles={styles} />
-          <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
-        </View>
-
-        <View style={styles.tripControls}>
-          {tripStatus === TripStatus.IDLE && (
-            <TouchableOpacity style={styles.controlButton} onPress={handleStartTrip}>
-              <Text variant="buttonLarge" color="inverse">
-                ▶️ Bắt đầu chuyến đi
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {tripStatus === TripStatus.RUNNING && (
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.controlButton, styles.controlButtonPause, styles.buttonInRow]}
-                onPress={handlePauseTrip}
-              >
-                <Text variant="button" color="inverse">
-                  ⏸️ Tạm dừng
-                </Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <View style={styles.header}>
+            <Text variant="h2" color="primary">
+              🚗 Speedometer
+            </Text>
+            <View style={styles.headerRight}>
+              <TouchableOpacity style={styles.themeButton} onPress={handleToggleTheme}>
+                <Text style={styles.themeButtonText}>{isDark ? '☀️' : '🌙'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.controlButton, styles.controlButtonStop, styles.buttonInRow]}
-                onPress={handleStopTrip}
-              >
-                <Text variant="button" color="inverse">
-                  ⏹️ Kết thúc
+              <View style={styles.statusBadge}>
+                <View style={[styles.statusDot, isRunning && styles.statusDotActive]} />
+                <Text variant="caption" color="secondary" style={styles.statusText}>
+                  {tripStatus === TripStatus.RUNNING
+                    ? 'Recording'
+                    : tripStatus === TripStatus.PAUSED
+                    ? 'Paused'
+                    : 'Ready'}
                 </Text>
-              </TouchableOpacity>
+              </View>
             </View>
-          )}
+          </View>
 
-          {tripStatus === TripStatus.PAUSED && (
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.controlButton, styles.controlButtonResume, styles.buttonInRow]}
-                onPress={handleResumeTrip}
-              >
-                <Text variant="button" color="inverse">
-                  ▶️ Tiếp tục
+          <View style={styles.gaugeContainer}>
+            <SpeedometerGauge speed={speedMS} maxSpeed={200} unit={SpeedUnit.KMH} />
+          </View>
+
+          <View style={styles.statsContainer}>
+            <StatCard
+              label="Trung bình"
+              value={tripStats.averageSpeed.toFixed(0)}
+              unit="km/h"
+              styles={styles}
+            />
+            <StatCard
+              label="Tối đa"
+              value={tripStats.maxSpeed.toFixed(0)}
+              unit="km/h"
+              styles={styles}
+            />
+            <StatCard
+              label="Quãng đường"
+              value={formatDistance(tripStats.distance)}
+              unit=""
+              styles={styles}
+            />
+          </View>
+
+          <View style={styles.speedInfo}>
+            <SpeedRow label="km/h" value={speedKMH.toFixed(1)} highlight styles={styles} />
+            <SpeedRow label="mph" value={speedMPH.toFixed(1)} styles={styles} />
+            <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
+          </View>
+
+          <View style={styles.tripControls}>
+            {tripStatus === TripStatus.IDLE && (
+              <TouchableOpacity style={styles.controlButton} onPress={handleStartTrip}>
+                <Text variant="buttonLarge" color="inverse">
+                  ▶️ Bắt đầu chuyến đi
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.controlButton, styles.controlButtonStop, styles.buttonInRow]}
-                onPress={handleStopTrip}
-              >
-                <Text variant="button" color="inverse">
-                  ⏹️ Kết thúc
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </SafeAreaView>
-    </Animated.View>
+            )}
+
+            {tripStatus === TripStatus.RUNNING && (
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={[styles.controlButton, styles.controlButtonPause, styles.buttonInRow]}
+                  onPress={handlePauseTrip}
+                >
+                  <Text variant="button" color="inverse">
+                    ⏸️ Tạm dừng
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.controlButton, styles.controlButtonStop, styles.buttonInRow]}
+                  onPress={handleStopTrip}
+                >
+                  <Text variant="button" color="inverse">
+                    ⏹️ Kết thúc
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {tripStatus === TripStatus.PAUSED && (
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={[styles.controlButton, styles.controlButtonResume, styles.buttonInRow]}
+                  onPress={handleResumeTrip}
+                >
+                  <Text variant="button" color="inverse">
+                    ▶️ Tiếp tục
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.controlButton, styles.controlButtonStop, styles.buttonInRow]}
+                  onPress={handleStopTrip}
+                >
+                  <Text variant="button" color="inverse">
+                    ⏹️ Kết thúc
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
@@ -369,7 +377,7 @@ function SpeedRow({ label, value, highlight, styles }: SpeedRowProps) {
   );
 }
 
-const createStyles = (colors: ColorScheme) =>
+const createStyles = (colors: ColorScheme, bottomInset: number = 0) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -377,6 +385,10 @@ const createStyles = (colors: ColorScheme) =>
     },
     flex: {
       flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingBottom: Math.max(bottomInset, 20), // Ensure minimum 20px padding
     },
     loadingContainer: {
       flex: 1,
@@ -502,7 +514,8 @@ const createStyles = (colors: ColorScheme) =>
     },
     tripControls: {
       marginHorizontal: 20,
-      marginTop: 20,
+      marginTop: 24,
+      marginBottom: 8, // Extra spacing before safe area
     },
     buttonRow: {
       flexDirection: 'row',
@@ -510,11 +523,16 @@ const createStyles = (colors: ColorScheme) =>
     },
     controlButton: {
       backgroundColor: colors.success,
-      paddingVertical: 16,
+      paddingVertical: 18,
       paddingHorizontal: 24,
       borderRadius: 12,
       alignItems: 'center',
-      minHeight: 56,
+      minHeight: 58,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
     },
     buttonInRow: {
       flex: 1,

@@ -43,19 +43,18 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
 
   useEffect(() => {
     const checkPermissions = async () => {
+      console.log('useLocation: Checking permissions...');
       const status = await checkLocationPermission();
       setPermission(status);
 
       const servicesEnabled = await isLocationEnabled();
       setIsLocationServicesEnabled(servicesEnabled);
 
-      if (autoStart && status === PermissionStatus.GRANTED && servicesEnabled) {
-        await startTracking();
-      }
+      console.log('useLocation: Permission status:', { status, servicesEnabled });
     };
 
     checkPermissions();
-  }, [autoStart]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -124,11 +123,15 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
   }, [permission, enableMockData]);
 
   const startTracking = useCallback(async (): Promise<void> => {
+    console.log('useLocation.startTracking: Called', { permission, enableMockData, isTracking });
+
     if (watchSubscription.current) {
+      console.log('useLocation.startTracking: Removing existing subscription');
       watchSubscription.current.remove();
     }
 
     if (permission !== PermissionStatus.GRANTED && !enableMockData) {
+      console.error('useLocation.startTracking: Permission denied');
       setError({
         type: GPSErrorType.PERMISSION_DENIED,
         message: 'Location permission not granted',
@@ -137,15 +140,19 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       return;
     }
 
+    console.log('useLocation.startTracking: Starting tracking...');
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log('useLocation.startTracking: Getting last known position...');
       const lastPosition = await getLastKnownPosition();
       if (lastPosition) {
+        console.log('useLocation.startTracking: Got last position:', lastPosition.coords);
         setLocation(lastPosition);
       }
 
+      console.log('useLocation.startTracking: Setting up watch location...');
       const subscription = await watchLocation(
         (data) => {
           setLocation(data);
@@ -162,9 +169,11 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       );
 
       if (subscription) {
+        console.log('useLocation.startTracking: Watch location started successfully');
         watchSubscription.current = subscription;
         setIsTracking(true);
       } else {
+        console.error('useLocation.startTracking: Failed to get subscription');
         setError({
           type: GPSErrorType.LOCATION_UNAVAILABLE,
           message: 'Failed to start location tracking',
@@ -172,12 +181,14 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
         });
       }
     } catch (err) {
+      console.error('useLocation.startTracking: Error:', err);
       setError({
         type: GPSErrorType.UNKNOWN,
         message: err instanceof Error ? err.message : 'Unknown error',
         timestamp: Date.now(),
       });
     } finally {
+      console.log('useLocation.startTracking: Finished');
       setIsLoading(false);
     }
   }, [permission, enableMockData, distanceInterval, timeInterval]);
@@ -189,6 +200,19 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       setIsTracking(false);
     }
   }, []);
+
+  // Auto-start tracking when permission is granted and autoStart is enabled
+  useEffect(() => {
+    if (
+      autoStart &&
+      permission === PermissionStatus.GRANTED &&
+      isLocationServicesEnabled &&
+      !isTracking
+    ) {
+      console.log('useLocation: autoStart enabled, calling startTracking...');
+      startTracking();
+    }
+  }, [autoStart, permission, isLocationServicesEnabled, isTracking, startTracking]);
 
   return {
     location,

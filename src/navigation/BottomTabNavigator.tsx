@@ -4,11 +4,13 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SpeedometerScreen } from '../components/SpeedometerScreen';
 import { TripHistoryScreen } from '../components/TripHistoryScreen';
 import { SpeedAlertSettings } from '../components/SpeedAlertSettings';
+import { MapScreen } from '../components/MapScreen';
 import { CustomTabBar } from './CustomTabBar';
 
 export type BottomTabParamList = {
   Home: undefined;
   History: undefined;
+  Map: undefined;
   Settings: undefined;
 };
 
@@ -36,6 +38,14 @@ export function BottomTabNavigator() {
         options={{
           tabBarLabel: 'Lịch sử',
           tabBarIcon: () => <Text style={{ fontSize: 24 }}>📊</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="Map"
+        component={MapScreen}
+        options={{
+          tabBarLabel: 'Bản đồ',
+          tabBarIcon: () => <Text style={{ fontSize: 24 }}>🗺️</Text>,
         }}
       />
       <Tab.Screen
