@@ -16,6 +16,7 @@ import { SpeedometerGauge } from './SpeedometerGauge';
 import { SpeedAlertBanner } from './SpeedAlertBanner';
 import { CompassIndicator } from './CompassIndicator';
 import { VoiceSettings } from './VoiceSettings';
+import { BackgroundTrackingIndicator } from './BackgroundTrackingIndicator';
 import { Text } from './Text';
 import { SpeedUnit, PermissionStatus, TripStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
@@ -280,6 +281,9 @@ export function SpeedometerScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Animated.View style={[styles.flex, { opacity: fadeAnim }]}>
+        {/* Background Tracking Indicator */}
+        <BackgroundTrackingIndicator />
+
         {/* Alert Banner - Absolute positioned, won't affect layout */}
         <SpeedAlertBanner
           isActive={isAlertActive}

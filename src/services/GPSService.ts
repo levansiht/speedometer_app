@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import { LocationData, GPSError, GPSErrorType, Coordinates } from '../types';
 import { GPS_CONFIG } from '../constants';
+import { speedFilter } from '../utils/speedFilter';
 
 interface GPSServiceConfig {
   accuracy: Location.LocationAccuracy;
@@ -130,5 +131,5 @@ const mapCoordinates = (coords: Location.LocationObjectCoords): Coordinates => (
   accuracy: coords.accuracy,
   altitudeAccuracy: coords.altitudeAccuracy ?? null,
   heading: coords.heading,
-  speed: coords.speed,
+  speed: speedFilter.filter(coords.speed, coords.accuracy), // Apply smoothing filter
 });

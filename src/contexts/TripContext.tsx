@@ -2,6 +2,10 @@ import React, { createContext, useState, useCallback, useRef, useEffect } from '
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Trip, TripStatus, RoutePoint, LocationData } from '../types';
 import { db } from '../services/DatabaseService';
+import {
+  startBackgroundTracking,
+  stopBackgroundTracking,
+} from '../services/BackgroundLocationService';
 
 const TRIP_HISTORY_KEY = '@speedometer_trip_history';
 const MAX_HISTORY_ITEMS = 50;
@@ -70,7 +74,7 @@ export function TripProvider({ children }: TripProviderProps) {
     []
   );
 
-  const startTrip = useCallback(() => {
+  const startTrip = useCallback(async () => {
     const now = Date.now();
     const newTrip: Trip = {
       id: `trip_${now}`,
@@ -93,6 +97,12 @@ export function TripProvider({ children }: TripProviderProps) {
     previousLocationRef.current = null;
     pausedDurationRef.current = 0;
     pauseStartTimeRef.current = null;
+
+    // Start background tracking
+    const started = await startBackgroundTracking();
+    if (!started) {
+      console.warn('[TripContext] Failed to start background tracking');
+    }
   }, []);
 
   const pauseTrip = useCallback(() => {
@@ -168,6 +178,9 @@ export function TripProvider({ children }: TripProviderProps) {
     previousLocationRef.current = null;
     pausedDurationRef.current = 0;
     pauseStartTimeRef.current = null;
+
+    // Stop background tracking
+    await stopBackgroundTracking();
   }, [currentTrip]);
 
   const updateLocation = useCallback(

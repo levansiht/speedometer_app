@@ -7,7 +7,7 @@ export interface VoiceConfig {
   language: string;
   pitch: number;
   rate: number;
-  intervalKm: number; // Announce every X km (1, 5, 10)
+  intervalKm: number;
 }
 
 export interface AnnouncementData {
@@ -20,10 +20,10 @@ export interface AnnouncementData {
 class VoiceServiceClass {
   private config: VoiceConfig = {
     enabled: true,
-    language: 'vi-VN', // Vietnamese
+    language: 'vi-VN',
     pitch: 1.0,
     rate: 0.9,
-    intervalKm: 1, // Default: announce every 1km
+    intervalKm: 1,
   };
 
   private lastAnnouncedKm: number = 0;
@@ -117,14 +117,18 @@ class VoiceServiceClass {
     this.isSpeaking = true;
 
     try {
+      const voices = await Speech.getAvailableVoicesAsync();
+      const hasVietnamese = voices.some((v) => v.language.startsWith('vi'));
+
       await Speech.speak(text, {
-        language: this.config.language,
+        language: hasVietnamese ? this.config.language : 'en-US',
         pitch: this.config.pitch,
         rate: this.config.rate,
         onDone: () => {
           this.isSpeaking = false;
         },
-        onError: () => {
+        onError: (error) => {
+          console.error('Voice error:', error);
           this.isSpeaking = false;
         },
       });

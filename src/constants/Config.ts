@@ -1,10 +1,8 @@
-
-
 export const GPS_CONFIG = {
   UPDATE_INTERVAL: 1000,
-  MIN_DISTANCE: 5,
+  MIN_DISTANCE: 2, 
   ACCURACY: {
-    LOW: 100, 
+    LOW: 100,
     MEDIUM: 50,
     HIGH: 10,
     BEST: 5,
@@ -25,7 +23,7 @@ export const APP_LIMITS = {
 export const DEFAULT_SETTINGS = {
   SPEED_UNIT: 'kmh',
   THEME: 'auto',
-  SPEED_LIMIT: 80, 
+  SPEED_LIMIT: 80,
   KEEP_SCREEN_ON: true,
   SHOW_COMPASS: true,
   HUD_MODE: false,
