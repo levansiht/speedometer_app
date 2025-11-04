@@ -7,6 +7,11 @@ module.exports = {
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',
     newArchEnabled: true,
+    extra: {
+      eas: {
+        projectId: 'd2a7ea4a-fc85-4cee-8fb4-e5eed8940bcd',
+      },
+    },
     splash: {
       image: './assets/splash-icon.png',
       resizeMode: 'contain',

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useCallback, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SpeedUnit } from '../types';
+import { setBackgroundSpeedAlert } from '../services/BackgroundLocationService';
 
 const SPEED_ALERT_KEY = '@speedometer_speed_alert';
 
@@ -60,6 +61,8 @@ export function SpeedAlertProvider({ children }: SpeedAlertProviderProps) {
 
       try {
         await AsyncStorage.setItem(SPEED_ALERT_KEY, JSON.stringify(newConfig));
+
+        await setBackgroundSpeedAlert(newConfig.enabled, newConfig.threshold);
       } catch (error) {
         console.error('Failed to save speed alert config:', error);
       }

@@ -1,8 +1,3 @@
-/**
- * Background Location Service
- * Handles GPS tracking and notifications when app is in background
- */
-
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
@@ -16,9 +11,11 @@ const STORAGE_KEYS = {
   TRIP_START_TIME: 'trip_start_time',
   TOTAL_DISTANCE: 'trip_total_distance',
   LAST_POSITION: 'trip_last_position',
+  SPEED_ALERT_THRESHOLD: 'speed_alert_threshold',
+  SPEED_ALERT_ENABLED: 'speed_alert_enabled',
+  LAST_SPEED_ALERT_TIME: 'last_speed_alert_time',
 };
 
-// Configure notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -36,7 +33,7 @@ const calculateDistance = (
   coord1: { latitude: number; longitude: number },
   coord2: { latitude: number; longitude: number }
 ): number => {
-  const R = 6371e3; // Earth radius in meters
+  const R = 6371e3;
   const φ1 = (coord1.latitude * Math.PI) / 180;
   const φ2 = (coord2.latitude * Math.PI) / 180;
   const Δφ = ((coord2.latitude - coord1.latitude) * Math.PI) / 180;
@@ -50,9 +47,6 @@ const calculateDistance = (
   return R * c;
 };
 
-/**
- * Send local notification
- */
 const sendNotification = async (title: string, body: string) => {
   await Notifications.scheduleNotificationAsync({
     content: {
@@ -60,13 +54,10 @@ const sendNotification = async (title: string, body: string) => {
       body,
       sound: true,
     },
-    trigger: null, // Send immediately
+    trigger: null,
   });
 };
 
-/**
- * Background location task definition
- */
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   if (error) {
     console.error('[Background] Location task error:', error);
@@ -80,7 +71,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     if (!location) return;
 
     try {
-      // Get stored data
       const lastPosStr = await AsyncStorage.getItem(STORAGE_KEYS.LAST_POSITION);
       const totalDistanceStr = await AsyncStorage.getItem(STORAGE_KEYS.TOTAL_DISTANCE);
       const lastNotificationKmStr = await AsyncStorage.getItem(STORAGE_KEYS.LAST_NOTIFICATION_KM);
@@ -89,7 +79,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       const totalDistance = totalDistanceStr ? parseFloat(totalDistanceStr) : 0;
       const lastNotificationKm = lastNotificationKmStr ? parseFloat(lastNotificationKmStr) : 0;
 
-      // Calculate distance from last position
       let newTotalDistance = totalDistance;
       if (lastPos) {
         const distance = calculateDistance(
@@ -99,7 +88,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
         newTotalDistance = totalDistance + distance;
       }
 
-      // Save new position and distance
       await AsyncStorage.setItem(
         STORAGE_KEYS.LAST_POSITION,
         JSON.stringify({
@@ -109,7 +97,29 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       );
       await AsyncStorage.setItem(STORAGE_KEYS.TOTAL_DISTANCE, newTotalDistance.toString());
 
-      // Check if we should send notification (every 1 km)
+      const speedAlertEnabledStr = await AsyncStorage.getItem(STORAGE_KEYS.SPEED_ALERT_ENABLED);
+      const speedAlertThresholdStr = await AsyncStorage.getItem(STORAGE_KEYS.SPEED_ALERT_THRESHOLD);
+      const lastSpeedAlertTimeStr = await AsyncStorage.getItem(STORAGE_KEYS.LAST_SPEED_ALERT_TIME);
+
+      const speedAlertEnabled = speedAlertEnabledStr === 'true';
+      const speedAlertThreshold = speedAlertThresholdStr ? parseFloat(speedAlertThresholdStr) : 50; // Default 50 km/h
+      const lastSpeedAlertTime = lastSpeedAlertTimeStr ? parseInt(lastSpeedAlertTimeStr, 10) : 0;
+
+      if (speedAlertEnabled && location.coords.speed) {
+        const currentSpeedKmh = location.coords.speed * 3.6;
+        const now = Date.now();
+
+        if (currentSpeedKmh > speedAlertThreshold && now - lastSpeedAlertTime > 30000) {
+          await sendNotification(
+            '⚠️ Cảnh báo vượt tốc độ!',
+            `Tốc độ hiện tại: ${currentSpeedKmh.toFixed(
+              0
+            )} km/h (Giới hạn: ${speedAlertThreshold} km/h)`
+          );
+          await AsyncStorage.setItem(STORAGE_KEYS.LAST_SPEED_ALERT_TIME, now.toString());
+        }
+      }
+
       const currentKm = Math.floor(newTotalDistance / 1000);
       if (currentKm > lastNotificationKm) {
         const speed = location.coords.speed ? (location.coords.speed * 3.6).toFixed(0) : '0';
@@ -122,9 +132,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   }
 });
 
-/**
- * Request notification permissions
- */
+
 export const requestNotificationPermissions = async (): Promise<boolean> => {
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
@@ -137,11 +145,8 @@ export const requestNotificationPermissions = async (): Promise<boolean> => {
   return finalStatus === 'granted';
 };
 
-/**
- * Request background location permissions
- */
+
 export const requestBackgroundLocationPermissions = async (): Promise<boolean> => {
-  // First check foreground permissions
   const { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
   if (foregroundStatus !== 'granted') {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -150,7 +155,6 @@ export const requestBackgroundLocationPermissions = async (): Promise<boolean> =
     }
   }
 
-  // Then check background permissions
   const { status: backgroundStatus } = await Location.getBackgroundPermissionsAsync();
   if (backgroundStatus !== 'granted') {
     const { status } = await Location.requestBackgroundPermissionsAsync();
@@ -160,12 +164,9 @@ export const requestBackgroundLocationPermissions = async (): Promise<boolean> =
   return true;
 };
 
-/**
- * Start background location tracking
- */
+
 export const startBackgroundTracking = async (): Promise<boolean> => {
   try {
-    // Request permissions
     const hasNotificationPermission = await requestNotificationPermissions();
     if (!hasNotificationPermission) {
       console.warn('[Background] Notification permission denied');
@@ -177,21 +178,18 @@ export const startBackgroundTracking = async (): Promise<boolean> => {
       return false;
     }
 
-    // Check if already running
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
     if (isRegistered) {
       console.log('[Background] Task already registered, skipping');
       return true;
     }
 
-    // Initialize storage
     await AsyncStorage.setItem(STORAGE_KEYS.IS_TRACKING, 'true');
     await AsyncStorage.setItem(STORAGE_KEYS.TRIP_START_TIME, Date.now().toString());
     await AsyncStorage.setItem(STORAGE_KEYS.TOTAL_DISTANCE, '0');
     await AsyncStorage.setItem(STORAGE_KEYS.LAST_NOTIFICATION_KM, '0');
     await AsyncStorage.removeItem(STORAGE_KEYS.LAST_POSITION);
 
-    // Start background location updates
     await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
       accuracy: Location.Accuracy.BestForNavigation,
       timeInterval: GPS_CONFIG.UPDATE_INTERVAL,
@@ -213,9 +211,7 @@ export const startBackgroundTracking = async (): Promise<boolean> => {
   }
 };
 
-/**
- * Stop background location tracking
- */
+
 export const stopBackgroundTracking = async (): Promise<void> => {
   try {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
@@ -223,7 +219,6 @@ export const stopBackgroundTracking = async (): Promise<void> => {
       await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
     }
 
-    // Clear storage
     await AsyncStorage.setItem(STORAGE_KEYS.IS_TRACKING, 'false');
     await AsyncStorage.removeItem(STORAGE_KEYS.LAST_POSITION);
 
@@ -233,9 +228,6 @@ export const stopBackgroundTracking = async (): Promise<void> => {
   }
 };
 
-/**
- * Check if background tracking is active
- */
 export const isBackgroundTrackingActive = async (): Promise<boolean> => {
   try {
     const isTracking = await AsyncStorage.getItem(STORAGE_KEYS.IS_TRACKING);
@@ -245,9 +237,7 @@ export const isBackgroundTrackingActive = async (): Promise<boolean> => {
   }
 };
 
-/**
- * Get background tracking stats
- */
+
 export const getBackgroundTrackingStats = async () => {
   try {
     const totalDistanceStr = await AsyncStorage.getItem(STORAGE_KEYS.TOTAL_DISTANCE);
@@ -259,5 +249,39 @@ export const getBackgroundTrackingStats = async () => {
     };
   } catch {
     return { totalDistance: 0, startTime: null };
+  }
+};
+
+
+export const setBackgroundSpeedAlert = async (
+  enabled: boolean,
+  threshold: number
+): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.SPEED_ALERT_ENABLED, enabled ? 'true' : 'false');
+    await AsyncStorage.setItem(STORAGE_KEYS.SPEED_ALERT_THRESHOLD, threshold.toString());
+    console.log(
+      `[Background] Speed alert ${enabled ? 'enabled' : 'disabled'} at ${threshold} km/h`
+    );
+  } catch (error) {
+    console.error('[Background] Failed to set speed alert:', error);
+  }
+};
+
+
+export const getBackgroundSpeedAlert = async (): Promise<{
+  enabled: boolean;
+  threshold: number;
+}> => {
+  try {
+    const enabledStr = await AsyncStorage.getItem(STORAGE_KEYS.SPEED_ALERT_ENABLED);
+    const thresholdStr = await AsyncStorage.getItem(STORAGE_KEYS.SPEED_ALERT_THRESHOLD);
+
+    return {
+      enabled: enabledStr === 'true',
+      threshold: thresholdStr ? parseFloat(thresholdStr) : 50,
+    };
+  } catch {
+    return { enabled: false, threshold: 50 };
   }
 };
