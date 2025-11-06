@@ -101,6 +101,7 @@ export interface RoutePoint {
   speed: number;
   timestamp: number;
   altitude?: number;
+  accuracy?: number;
 }
 
 /**

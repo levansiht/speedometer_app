@@ -188,18 +188,11 @@ export function TripProvider({ children }: TripProviderProps) {
       const { coords, timestamp } = location;
       const speed = coords.speed ?? 0;
 
-      const routePoint: RoutePoint = {
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        speed,
-        timestamp,
-        altitude: coords.altitude ?? undefined,
-      };
-
       setCurrentTrip((prev) => {
         if (!prev || prev.status !== 'running') return prev;
 
         let newDistance = prev.stats.distance;
+        let shouldAddPoint = false;
 
         if (previousLocationRef.current) {
           const prevCoords = previousLocationRef.current.coords;
@@ -210,9 +203,14 @@ export function TripProvider({ children }: TripProviderProps) {
             coords.longitude
           );
 
-          if (distanceDelta > 5) {
+          // Chỉ thêm point khi di chuyển >1m (giảm từ 5m → 1m)
+          if (distanceDelta > 1) {
             newDistance += distanceDelta;
+            shouldAddPoint = true;
           }
+        } else {
+          // Điểm đầu tiên luôn thêm
+          shouldAddPoint = true;
         }
 
         const totalElapsedTime = timestamp - prev.stats.startTime;
@@ -223,7 +221,54 @@ export function TripProvider({ children }: TripProviderProps) {
 
         const maxSpeed = Math.max(prev.stats.maxSpeed, speed);
 
-        const newRoute = [...prev.route, routePoint];
+        // Chỉ thêm point khi có di chuyển thực sự
+        let newRoute = prev.route;
+        if (shouldAddPoint) {
+          // If the delta is large, interpolate intermediate points to avoid straight-line joins
+          const prevLoc = previousLocationRef.current;
+          const interpolated: RoutePoint[] = [];
+
+          if (prevLoc) {
+            const prevCoords = prevLoc.coords;
+            const distanceDelta = calculateDistance(
+              prevCoords.latitude,
+              prevCoords.longitude,
+              coords.latitude,
+              coords.longitude
+            );
+
+            // create roughly one point every 2 meters for smoother curves, cap segments to avoid huge arrays
+            const segmentLength = 2; // meters
+            const maxSegments = 50;
+            const segments = Math.min(Math.floor(distanceDelta / segmentLength), maxSegments);
+
+            for (let i = 1; i <= segments; i++) {
+              const frac = i / (segments + 1);
+              const lat = prevCoords.latitude + (coords.latitude - prevCoords.latitude) * frac;
+              const lon = prevCoords.longitude + (coords.longitude - prevCoords.longitude) * frac;
+              const ts = Math.floor(prevLoc.timestamp + (timestamp - prevLoc.timestamp) * frac);
+
+              interpolated.push({
+                latitude: lat,
+                longitude: lon,
+                speed,
+                timestamp: ts,
+              });
+            }
+          }
+
+          newRoute = [
+            ...prev.route,
+            ...interpolated,
+            {
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              speed,
+              timestamp,
+              altitude: coords.altitude ?? undefined,
+            },
+          ];
+        }
 
         return {
           ...prev,

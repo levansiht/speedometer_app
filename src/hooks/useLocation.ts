@@ -145,8 +145,14 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       }
 
       const subscription = await watchLocation(
-        (data) => {
-          setLocation(data);
+        (loc) => {
+          console.log('📍 GPS Update:', {
+            accuracy: loc.coords.accuracy?.toFixed(1) + 'm',
+            speed: loc.coords.speed?.toFixed(1) + 'm/s',
+            lat: loc.coords.latitude.toFixed(6),
+            lon: loc.coords.longitude.toFixed(6),
+          });
+          setLocation(loc);
           setError(null);
         },
         (err) => {

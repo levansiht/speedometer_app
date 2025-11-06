@@ -14,14 +14,12 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocation, useTheme, useTripManager, useSpeedAlert } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
 import { SpeedAlertBanner } from './SpeedAlertBanner';
-import { CompassIndicator } from './CompassIndicator';
 import { VoiceSettings } from './VoiceSettings';
 import { BackgroundTrackingIndicator } from './BackgroundTrackingIndicator';
 import { Text } from './Text';
 import { SpeedUnit, PermissionStatus, TripStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
-import { CompassService, type CompassData } from '../services/CompassService';
 import { VoiceService } from '../services/VoiceService';
 
 export function SpeedometerScreen() {
@@ -30,9 +28,6 @@ export function SpeedometerScreen() {
   const styles = useMemo(() => createStyles(colors, insets.bottom), [colors, insets.bottom]);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
-
-  const [compassData, setCompassData] = useState<CompassData | null>(null);
-  const [isCompassAvailable, setIsCompassAvailable] = useState(false);
 
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
@@ -124,24 +119,6 @@ export function SpeedometerScreen() {
       Alert.alert('Lỗi GPS', error.message);
     }
   }, [error]);
-
-  useEffect(() => {
-    const initCompass = async () => {
-      const available = await CompassService.initialize();
-      setIsCompassAvailable(available);
-      if (available) {
-        CompassService.startWatching((data) => {
-          setCompassData(data);
-        });
-      }
-    };
-
-    initCompass();
-
-    return () => {
-      CompassService.stopWatching();
-    };
-  }, []);
 
   useEffect(() => {
     if (!currentTrip) return;
@@ -327,18 +304,6 @@ export function SpeedometerScreen() {
             <SpeedometerGauge speed={speedMS} maxSpeed={200} unit={SpeedUnit.KMH} />
           </View>
 
-          {/* Compass Indicator */}
-          {isCompassAvailable && compassData && (
-            <View style={styles.compassContainer}>
-              <CompassIndicator
-                heading={compassData.heading}
-                direction={compassData.direction}
-                directionName={CompassService.getDirectionName(compassData.direction)}
-                colors={colors}
-              />
-            </View>
-          )}
-
           <View style={styles.statsContainer}>
             <StatCard
               label="Trung bình"
@@ -358,12 +323,6 @@ export function SpeedometerScreen() {
               unit=""
               styles={styles}
             />
-          </View>
-
-          <View style={styles.speedInfo}>
-            <SpeedRow label="km/h" value={speedKMH.toFixed(1)} highlight styles={styles} />
-            <SpeedRow label="mph" value={speedMPH.toFixed(1)} styles={styles} />
-            <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
           </View>
 
           <View style={styles.tripControls}>
@@ -416,6 +375,12 @@ export function SpeedometerScreen() {
                 </TouchableOpacity>
               </View>
             )}
+          </View>
+
+          <View style={styles.speedInfo}>
+            <SpeedRow label="km/h" value={speedKMH.toFixed(1)} highlight styles={styles} />
+            <SpeedRow label="mph" value={speedMPH.toFixed(1)} styles={styles} />
+            <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
           </View>
         </ScrollView>
       </Animated.View>
@@ -539,12 +504,13 @@ const createStyles = (colors: ColorScheme, bottomInset: number = 0) =>
     headerRight: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      gap: 8,
+      flexShrink: 1,
     },
     themeButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       backgroundColor: colors.surface,
       justifyContent: 'center',
       alignItems: 'center',
@@ -558,9 +524,11 @@ const createStyles = (colors: ColorScheme, bottomInset: number = 0) =>
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.backgroundSecondary,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
       borderRadius: 16,
+      flexShrink: 0,
+      minWidth: 80,
     },
     statusDot: {
       width: 8,
@@ -578,11 +546,6 @@ const createStyles = (colors: ColorScheme, bottomInset: number = 0) =>
     gaugeContainer: {
       alignItems: 'center',
       marginVertical: 20,
-    },
-    compassContainer: {
-      alignItems: 'center',
-      marginVertical: 12,
-      paddingHorizontal: 20,
     },
     statsContainer: {
       flexDirection: 'row',

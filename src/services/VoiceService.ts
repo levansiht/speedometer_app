@@ -139,8 +139,10 @@ class VoiceServiceClass {
   }
 
   stop(): void {
-    Speech.stop();
-    this.isSpeaking = false;
+    if (this.isSpeaking) {
+      Speech.stop();
+      this.isSpeaking = false;
+    }
   }
 
   resetAnnouncementCounter(): void {

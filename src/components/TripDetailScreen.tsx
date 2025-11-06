@@ -12,13 +12,14 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Polyline, Marker } from 'react-native-maps';
+import MapView, { Polyline, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useTheme } from '../hooks';
 import { Text } from './Text';
 import { SpeedUnit, type Trip } from '../types';
 import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
 import { exportService } from '../services/ExportService';
+import { createRouteSegmentsFromPoints, getColorBySpeed } from '../utils/mapHelpers';
 
 interface TripDetailScreenProps {
   trip: Trip;
@@ -68,14 +69,11 @@ export function TripDetailScreen({ trip, onClose }: TripDetailScreenProps) {
     };
   }, [trip.route]);
 
-  const routeCoordinates = useMemo(
-    () =>
-      trip.route.map((point) => ({
-        latitude: point.latitude,
-        longitude: point.longitude,
-      })),
-    [trip.route]
-  );
+  // Use smaller segment size to show color variations more granularly in history
+  const routeSegments = useMemo(() => {
+    if (!trip.route || trip.route.length < 2) return [];
+    return createRouteSegmentsFromPoints(trip.route, 5);
+  }, [trip.route]);
 
   const startPoint = trip.route[0];
   const endPoint = trip.route[trip.route.length - 1];
@@ -231,16 +229,22 @@ export function TripDetailScreen({ trip, onClose }: TripDetailScreenProps) {
 
   const renderMap = () => (
     <View style={styles.mapContainer}>
-      <MapView style={styles.map} initialRegion={mapRegion} showsUserLocation>
-        {routeCoordinates.length > 1 && (
+      <MapView
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        initialRegion={mapRegion}
+        showsUserLocation
+      >
+        {routeSegments.map((segment, index) => (
           <Polyline
-            coordinates={routeCoordinates}
-            strokeColor={colors.primary}
-            strokeWidth={4}
+            key={`segment-${index}`}
+            coordinates={segment.coordinates}
+            strokeColor={getColorBySpeed(segment.avgSpeed)}
+            strokeWidth={6}
             lineCap="round"
             lineJoin="round"
           />
-        )}
+        ))}
 
         {startPoint && (
           <Marker
@@ -264,6 +268,39 @@ export function TripDetailScreen({ trip, onClose }: TripDetailScreenProps) {
           />
         )}
       </MapView>
+
+      {/* Speed Legend */}
+      <View style={styles.speedLegend}>
+        <Text variant="caption" style={{ color: colors.textSecondary, marginBottom: 4 }}>
+          Màu theo tốc độ:
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ width: 12, height: 12, backgroundColor: '#22c55e', borderRadius: 2 }} />
+            <Text variant="caption" style={{ color: colors.text }}>
+              {'<30'}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ width: 12, height: 12, backgroundColor: '#eab308', borderRadius: 2 }} />
+            <Text variant="caption" style={{ color: colors.text }}>
+              30-60
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ width: 12, height: 12, backgroundColor: '#f97316', borderRadius: 2 }} />
+            <Text variant="caption" style={{ color: colors.text }}>
+              60-90
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ width: 12, height: 12, backgroundColor: '#ef4444', borderRadius: 2 }} />
+            <Text variant="caption" style={{ color: colors.text }}>
+              {'>90'}
+            </Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 
@@ -624,6 +661,21 @@ const createStyles = (
     },
     map: {
       flex: 1,
+    },
+    speedLegend: {
+      position: 'absolute',
+      bottom: 16,
+      left: 16,
+      backgroundColor: colors.surface,
+      padding: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
     },
     statsContainer: {
       flex: 1,
