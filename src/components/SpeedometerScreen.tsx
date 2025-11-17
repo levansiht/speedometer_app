@@ -15,12 +15,12 @@ import { useLocation, useTheme, useTripManager, useSpeedAlert } from '../hooks';
 import { SpeedometerGauge } from './SpeedometerGauge';
 import { SpeedAlertBanner } from './SpeedAlertBanner';
 import { VoiceSettings } from './VoiceSettings';
-import { BackgroundTrackingIndicator } from './BackgroundTrackingIndicator';
 import { Text } from './Text';
 import { SpeedUnit, PermissionStatus, TripStatus } from '../types';
 import type { ColorScheme } from '../types/theme';
 import { convertSpeed, formatDistance } from '../constants/Units';
 import { VoiceService } from '../services/VoiceService';
+import { openAppSettings } from '../services/PermissionService';
 
 export function SpeedometerScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -30,6 +30,7 @@ export function SpeedometerScreen() {
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [isStoppingTrip, setIsStoppingTrip] = useState(false);
 
   const handleToggleTheme = useCallback(() => {
     Animated.timing(fadeAnim, {
@@ -100,19 +101,30 @@ export function SpeedometerScreen() {
 
   useEffect(() => {
     if (permission === PermissionStatus.DENIED) {
+      const errorMessage = error?.message || 'Ứng dụng cần quyền truy cập GPS để đo tốc độ.';
+      const isPermanentlyDenied = errorMessage.includes('permanently') || errorMessage.includes('Settings');
+      
       Alert.alert(
         'Quyền truy cập vị trí',
-        'Ứng dụng cần quyền truy cập GPS để đo tốc độ. Vui lòng cấp quyền trong Cài đặt.',
+        isPermanentlyDenied 
+          ? 'Quyền truy cập vị trí đã bị từ chối vĩnh viễn. Vui lòng bật quyền trong Cài đặt.'
+          : 'Ứng dụng cần quyền truy cập GPS để đo tốc độ. Vui lòng cấp quyền.',
         [
           { text: 'Hủy', style: 'cancel' },
-          {
-            text: 'Thử lại',
-            onPress: requestPermission,
-          },
+          ...(isPermanentlyDenied 
+            ? [{
+                text: 'Mở Cài đặt',
+                onPress: openAppSettings,
+              }]
+            : [{
+                text: 'Thử lại',
+                onPress: requestPermission,
+              }]
+          ),
         ]
       );
     }
-  }, [permission, requestPermission]);
+  }, [permission, error, requestPermission]);
 
   useEffect(() => {
     if (error) {
@@ -180,9 +192,13 @@ export function SpeedometerScreen() {
   }, [requestPermission]);
 
   const handleStartTrip = useCallback(() => {
+    if (isStoppingTrip) {
+      console.log('[Speedometer] Ignoring startTrip while stopping previous trip');
+      return;
+    }
     VoiceService.resetAnnouncementCounter();
     startTrip();
-  }, [startTrip]);
+  }, [startTrip, isStoppingTrip]);
 
   const handlePauseTrip = useCallback(async () => {
     pauseTrip();
@@ -194,32 +210,68 @@ export function SpeedometerScreen() {
     await VoiceService.announceTripResume();
   }, [resumeTrip]);
 
-  const handleStopTrip = useCallback(async () => {
+  const announceTripEndSafely = useCallback(async () => {
+    if (!currentTrip) return;
+    const distanceKm = currentTrip.stats.distance / 1000;
+    const durationSeconds = currentTrip.stats.duration;
+    const averageSpeedMS = currentTrip.stats.averageSpeed;
+    const currentSpeedMS = location?.coords.speed ?? 0;
+
+    try {
+      await Promise.race([
+        VoiceService.announceTripEnd({
+          distanceKm,
+          durationSeconds,
+          averageSpeedMS,
+          currentSpeedMS,
+        }),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ]);
+    } catch (voiceError) {
+      console.warn('[Speedometer] announceTripEnd failed:', voiceError);
+    }
+  }, [currentTrip, location]);
+
+  const handleStopTrip = useCallback(() => {
+    if (!currentTrip) {
+      Alert.alert('Chưa có chuyến đi', 'Bạn cần bắt đầu chuyến đi trước khi kết thúc.');
+      return;
+    }
+    if (isStoppingTrip) {
+      console.log('[Speedometer] Stop trip already in progress');
+      return;
+    }
+
     Alert.alert('Kết thúc chuyến đi', 'Bạn có chắc muốn kết thúc chuyến đi này?', [
       { text: 'Hủy', style: 'cancel' },
       {
         text: 'Kết thúc',
         style: 'destructive',
         onPress: async () => {
-          if (currentTrip) {
-            const distanceKm = currentTrip.stats.distance / 1000;
-            const durationSeconds = currentTrip.stats.duration;
-            const averageSpeedMS = currentTrip.stats.averageSpeed;
-            const currentSpeedMS = location?.coords.speed ?? 0;
-
-            await VoiceService.announceTripEnd({
-              distanceKm,
-              durationSeconds,
-              averageSpeedMS,
-              currentSpeedMS,
+          console.log('[Speedometer] Stop trip confirmed', {
+            tripId: currentTrip.id,
+            distance: currentTrip.stats.distance,
+            duration: currentTrip.stats.duration,
+          });
+          await announceTripEndSafely();
+          try {
+            setIsStoppingTrip(true);
+            const stopStart = Date.now();
+            await stopTrip();
+            console.log('[Speedometer] stopTrip resolved', {
+              elapsedMs: Date.now() - stopStart,
             });
+            Alert.alert('Thành công', 'Chuyến đi đã được lưu vào lịch sử');
+          } catch (stopError) {
+            console.error('[Speedometer] stopTrip failed:', stopError);
+            Alert.alert('Lỗi', 'Không thể kết thúc chuyến đi. Vui lòng thử lại.');
+          } finally {
+            setIsStoppingTrip(false);
           }
-          await stopTrip();
-          Alert.alert('Thành công', 'Chuyến đi đã được lưu vào lịch sử');
         },
       },
     ]);
-  }, [stopTrip, currentTrip, location]);
+  }, [announceTripEndSafely, stopTrip, currentTrip, isStoppingTrip]);
 
   if (permission === PermissionStatus.UNDETERMINED || isLoading) {
     return (
@@ -258,9 +310,6 @@ export function SpeedometerScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Animated.View style={[styles.flex, { opacity: fadeAnim }]}>
-        {/* Background Tracking Indicator */}
-        <BackgroundTrackingIndicator />
-
         {/* Alert Banner - Absolute positioned, won't affect layout */}
         <SpeedAlertBanner
           isActive={isAlertActive}
@@ -327,7 +376,11 @@ export function SpeedometerScreen() {
 
           <View style={styles.tripControls}>
             {tripStatus === TripStatus.IDLE && (
-              <TouchableOpacity style={styles.controlButton} onPress={handleStartTrip}>
+              <TouchableOpacity
+                style={styles.controlButton}
+                onPress={handleStartTrip}
+                disabled={isStoppingTrip}
+              >
                 <Text variant="buttonLarge" color="inverse">
                   ▶️ Bắt đầu chuyến đi
                 </Text>
@@ -339,6 +392,7 @@ export function SpeedometerScreen() {
                 <TouchableOpacity
                   style={[styles.controlButton, styles.controlButtonPause, styles.buttonInRow]}
                   onPress={handlePauseTrip}
+                  disabled={isStoppingTrip}
                 >
                   <Text variant="button" color="inverse">
                     ⏸️ Tạm dừng
@@ -347,6 +401,7 @@ export function SpeedometerScreen() {
                 <TouchableOpacity
                   style={[styles.controlButton, styles.controlButtonStop, styles.buttonInRow]}
                   onPress={handleStopTrip}
+                  disabled={isStoppingTrip}
                 >
                   <Text variant="button" color="inverse">
                     ⏹️ Kết thúc
@@ -360,6 +415,7 @@ export function SpeedometerScreen() {
                 <TouchableOpacity
                   style={[styles.controlButton, styles.controlButtonResume, styles.buttonInRow]}
                   onPress={handleResumeTrip}
+                  disabled={isStoppingTrip}
                 >
                   <Text variant="button" color="inverse">
                     ▶️ Tiếp tục
@@ -368,6 +424,7 @@ export function SpeedometerScreen() {
                 <TouchableOpacity
                   style={[styles.controlButton, styles.controlButtonStop, styles.buttonInRow]}
                   onPress={handleStopTrip}
+                  disabled={isStoppingTrip}
                 >
                   <Text variant="button" color="inverse">
                     ⏹️ Kết thúc
@@ -383,6 +440,15 @@ export function SpeedometerScreen() {
             <SpeedRow label="m/s" value={speedMS.toFixed(2)} styles={styles} />
           </View>
         </ScrollView>
+
+        {isStoppingTrip && (
+          <View style={styles.stopOverlay}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text variant="body" color="inverse" style={styles.stopOverlayText}>
+              Đang lưu chuyến đi...
+            </Text>
+          </View>
+        )}
       </Animated.View>
 
       {/* Voice Settings Modal */}
@@ -467,6 +533,21 @@ const createStyles = (colors: ColorScheme, bottomInset: number = 0) =>
     },
     loadingText: {
       marginTop: 16,
+    },
+    stopOverlay: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 2000,
+    },
+    stopOverlayText: {
+      marginTop: 12,
+      fontWeight: '600',
     },
     errorContainer: {
       flex: 1,

@@ -42,6 +42,7 @@ export function TripProvider({ children }: TripProviderProps) {
   const previousLocationRef = useRef<LocationData | null>(null);
   const pausedDurationRef = useRef<number>(0);
   const pauseStartTimeRef = useRef<number | null>(null);
+  const stopInProgressRef = useRef(false);
 
   useEffect(() => {
     const initDB = async () => {
@@ -75,6 +76,11 @@ export function TripProvider({ children }: TripProviderProps) {
   );
 
   const startTrip = useCallback(async () => {
+    if (currentTrip && currentTrip.status === 'running') {
+      console.warn('[TripContext] startTrip ignored - trip already running');
+      return;
+    }
+
     const now = Date.now();
     const newTrip: Trip = {
       id: `trip_${now}`,
@@ -98,16 +104,18 @@ export function TripProvider({ children }: TripProviderProps) {
     pausedDurationRef.current = 0;
     pauseStartTimeRef.current = null;
 
+    console.log('[TripContext] startTrip', newTrip.id);
     // Start background tracking
     const started = await startBackgroundTracking();
     if (!started) {
       console.warn('[TripContext] Failed to start background tracking');
     }
-  }, []);
+  }, [currentTrip]);
 
   const pauseTrip = useCallback(() => {
     if (!currentTrip || currentTrip.status !== 'running') return;
 
+    console.log('[TripContext] pauseTrip', currentTrip.id);
     setCurrentTrip((prev) => {
       if (!prev) return prev;
       return {
@@ -123,6 +131,7 @@ export function TripProvider({ children }: TripProviderProps) {
   const resumeTrip = useCallback(() => {
     if (!currentTrip || currentTrip.status !== 'paused') return;
 
+    console.log('[TripContext] resumeTrip', currentTrip.id);
     if (pauseStartTimeRef.current) {
       const pauseDuration = Date.now() - pauseStartTimeRef.current;
       pausedDurationRef.current += pauseDuration;
@@ -140,8 +149,36 @@ export function TripProvider({ children }: TripProviderProps) {
     setIsTracking(true);
   }, [currentTrip]);
 
+  const loadTripHistory = useCallback(async () => {
+    try {
+      const trips = await db.getAllTrips();
+      setTripHistory(trips);
+    console.log(`Loaded ${trips.length} trips from database`);
+    } catch (error) {
+      console.error('Failed to load trip history from database:', error);
+
+      try {
+        const history = await AsyncStorage.getItem(TRIP_HISTORY_KEY);
+        if (history) {
+          const historyArray: Trip[] = JSON.parse(history);
+          setTripHistory(historyArray);
+        }
+      } catch (storageError) {
+        console.error('Failed to load from AsyncStorage:', storageError);
+      }
+    }
+  }, []);
+
   const stopTrip = useCallback(async () => {
-    if (!currentTrip) return;
+    if (!currentTrip) {
+      console.warn('[TripContext] stopTrip ignored - no current trip');
+      return;
+    }
+    if (stopInProgressRef.current) {
+      console.warn('[TripContext] stopTrip ignored - already in progress');
+      return;
+    }
+    stopInProgressRef.current = true;
 
     const now = Date.now();
 
@@ -155,33 +192,60 @@ export function TripProvider({ children }: TripProviderProps) {
       updatedAt: now,
     };
 
+    const stopStart = Date.now();
+    console.log('[TripContext] stopTrip start', {
+      tripId: finalTrip.id,
+      distance: finalTrip.stats.distance,
+      duration: finalTrip.stats.duration,
+      routePoints: finalTrip.route.length,
+    });
     try {
-      await db.saveTrip(finalTrip);
-      console.log('Trip saved to database:', finalTrip.id);
-      await loadTripHistory();
-    } catch (error) {
-      console.error('Failed to save trip to database:', error);
-
       try {
-        const history = await AsyncStorage.getItem(TRIP_HISTORY_KEY);
-        const historyArray: Trip[] = history ? JSON.parse(history) : [];
-        const updatedHistory = [finalTrip, ...historyArray].slice(0, MAX_HISTORY_ITEMS);
-        await AsyncStorage.setItem(TRIP_HISTORY_KEY, JSON.stringify(updatedHistory));
-        setTripHistory(updatedHistory);
-      } catch (storageError) {
-        console.error('Failed to save to AsyncStorage:', storageError);
+        const dbStart = Date.now();
+        await db.saveTrip(finalTrip);
+        console.log('[TripContext] Trip saved to database', {
+          tripId: finalTrip.id,
+          elapsedMs: Date.now() - dbStart,
+        });
+        loadTripHistory().catch((err) =>
+          console.error('[TripContext] Failed to refresh history:', err)
+        );
+      } catch (error) {
+        console.error('[TripContext] Failed to save trip to database:', error);
+
+        try {
+          const history = await AsyncStorage.getItem(TRIP_HISTORY_KEY);
+          const historyArray: Trip[] = history ? JSON.parse(history) : [];
+          const updatedHistory = [finalTrip, ...historyArray].slice(0, MAX_HISTORY_ITEMS);
+          const storageStart = Date.now();
+          await AsyncStorage.setItem(TRIP_HISTORY_KEY, JSON.stringify(updatedHistory));
+          setTripHistory(updatedHistory);
+          console.log('[TripContext] Trip saved to AsyncStorage', {
+            tripId: finalTrip.id,
+            elapsedMs: Date.now() - storageStart,
+            historySize: updatedHistory.length,
+          });
+        } catch (storageError) {
+          console.error('[TripContext] Failed to save to AsyncStorage:', storageError);
+        }
       }
+
+      setCurrentTrip(null);
+      setIsTracking(false);
+      previousLocationRef.current = null;
+      pausedDurationRef.current = 0;
+      pauseStartTimeRef.current = null;
+
+      // Stop background tracking
+      await stopBackgroundTracking();
+    } finally {
+      console.log('[TripContext] stopTrip finished', {
+        tripId: finalTrip.id,
+        totalMs: Date.now() - stopStart,
+      });
+      stopInProgressRef.current = false;
     }
-
-    setCurrentTrip(null);
-    setIsTracking(false);
-    previousLocationRef.current = null;
-    pausedDurationRef.current = 0;
-    pauseStartTimeRef.current = null;
-
-    // Stop background tracking
-    await stopBackgroundTracking();
-  }, [currentTrip]);
+  }, [currentTrip, loadTripHistory]);
 
   const updateLocation = useCallback(
     (location: LocationData) => {
@@ -288,26 +352,6 @@ export function TripProvider({ children }: TripProviderProps) {
     },
     [calculateDistance]
   );
-
-  const loadTripHistory = useCallback(async () => {
-    try {
-      const trips = await db.getAllTrips();
-      setTripHistory(trips);
-      console.log(`Loaded ${trips.length} trips from database`);
-    } catch (error) {
-      console.error('Failed to load trip history from database:', error);
-
-      try {
-        const history = await AsyncStorage.getItem(TRIP_HISTORY_KEY);
-        if (history) {
-          const historyArray: Trip[] = JSON.parse(history);
-          setTripHistory(historyArray);
-        }
-      } catch (storageError) {
-        console.error('Failed to load from AsyncStorage:', storageError);
-      }
-    }
-  }, []);
 
   const deleteTripFromHistory = useCallback(
     async (tripId: string) => {

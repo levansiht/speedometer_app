@@ -1,70 +1,154 @@
-import * as Location from 'expo-location';
+import Geolocation from 'react-native-geolocation-service';
 import { LocationData, GPSError, GPSErrorType, Coordinates } from '../types';
-import { GPS_CONFIG } from '../constants';
 import { speedFilter } from '../utils/speedFilter';
 
+type GeoPosition = {
+  coords: {
+    latitude: number;
+    longitude: number;
+    altitude?: number | null;
+    accuracy?: number;
+    altitudeAccuracy?: number | null;
+    heading?: number | null;
+  };
+  timestamp: number;
+};
+
+type GeoError = {
+  code: number;
+  message: string;
+};
+
 interface GPSServiceConfig {
-  accuracy: Location.LocationAccuracy;
-  distanceInterval: number;
-  timeInterval: number;
+  enableHighAccuracy: boolean;
+  distanceFilter: number;
+  interval: number;
+  fastestInterval: number;
 }
 
 const DEFAULT_CONFIG: GPSServiceConfig = {
-  accuracy: Location.LocationAccuracy.BestForNavigation,
-  distanceInterval: GPS_CONFIG.MIN_DISTANCE,
-  timeInterval: GPS_CONFIG.UPDATE_INTERVAL,
+  enableHighAccuracy: true,
+  distanceFilter: 0,
+  interval: 50,
+  fastestInterval: 10,
 };
 
 export const getCurrentLocation = async (
   config: Partial<GPSServiceConfig> = {}
 ): Promise<{ data?: LocationData; error?: GPSError }> => {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
-
-  try {
-    const location = await Location.getCurrentPositionAsync({
-      accuracy: finalConfig.accuracy,
-    });
-
-    return {
-      data: {
-        coords: mapCoordinates(location.coords),
-        timestamp: location.timestamp,
+  return new Promise((resolve) => {
+    Geolocation.getCurrentPosition(
+      (position: GeoPosition) => {
+        const calculatedSpeed = 0;
+        resolve({
+          data: {
+            coords: mapCoordinates(position.coords, calculatedSpeed, position.timestamp),
+            timestamp: position.timestamp,
+          },
+        });
       },
-    };
-  } catch (error) {
-    return {
-      error: {
-        type: GPSErrorType.LOCATION_UNAVAILABLE,
-        message: error instanceof Error ? error.message : 'Failed to get location',
-        timestamp: Date.now(),
+      (error: GeoError) => {
+        resolve({
+          error: {
+            type: GPSErrorType.LOCATION_UNAVAILABLE,
+            message: error.message,
+            timestamp: Date.now(),
+          },
+        });
       },
-    };
-  }
+      {
+        enableHighAccuracy: finalConfig.enableHighAccuracy,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    );
+  });
 };
 
-export const watchLocation = async (
+let previousLocation: {
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+} | null = null;
+
+function calculateSpeedFromDelta(
+  currentLocation: { latitude: number; longitude: number },
+  currentTimestamp: number
+): number {
+  if (!previousLocation) {
+    previousLocation = {
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+      timestamp: currentTimestamp,
+    };
+    return 0;
+  }
+
+  const timeDelta = (currentTimestamp - previousLocation.timestamp) / 1000;
+  if (timeDelta <= 0) {
+    return 0;
+  }
+
+  const distance = calculateDistance(previousLocation, currentLocation);
+  const speed = distance / timeDelta;
+
+  previousLocation = {
+    latitude: currentLocation.latitude,
+    longitude: currentLocation.longitude,
+    timestamp: currentTimestamp,
+  };
+
+  return speed;
+}
+
+export const watchLocation = (
   callback: (data: LocationData) => void,
   errorCallback: (error: GPSError) => void,
   config: Partial<GPSServiceConfig> = {}
-): Promise<{ remove: () => void } | null> => {
+): { remove: () => void } | null => {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
-
+  let watchId: number | null = null;
   try {
-    const subscription = await Location.watchPositionAsync(
-      {
-        accuracy: finalConfig.accuracy,
-        distanceInterval: finalConfig.distanceInterval,
-        timeInterval: finalConfig.timeInterval,
-      },
-      (location) => {
+    watchId = Geolocation.watchPosition(
+      (position: GeoPosition) => {
+        const calculatedSpeed = calculateSpeedFromDelta(
+          { latitude: position.coords.latitude, longitude: position.coords.longitude },
+          position.timestamp
+        );
+
         callback({
-          coords: mapCoordinates(location.coords),
-          timestamp: location.timestamp,
+          coords: mapCoordinates(
+            position.coords,
+            calculatedSpeed,
+            position.timestamp
+          ),
+          timestamp: position.timestamp,
         });
+      },
+      (error: GeoError) => {
+        errorCallback({
+          type: GPSErrorType.LOCATION_UNAVAILABLE,
+          message: error.message,
+          timestamp: Date.now(),
+        });
+      },
+      {
+        enableHighAccuracy: finalConfig.enableHighAccuracy,
+        distanceFilter: finalConfig.distanceFilter,
+        interval: finalConfig.interval,
+        fastestInterval: finalConfig.fastestInterval,
+        showLocationDialog: true,
+        forceRequestLocation: true,
       }
     );
-
-    return subscription;
+    return {
+      remove: () => {
+        if (watchId !== null) Geolocation.clearWatch(watchId);
+        previousLocation = null;
+        speedFilter.reset();
+      },
+    };
   } catch (error) {
     errorCallback({
       type: GPSErrorType.LOCATION_UNAVAILABLE,
@@ -76,19 +160,23 @@ export const watchLocation = async (
 };
 
 export const getLastKnownPosition = async (): Promise<LocationData | null> => {
-  try {
-    const location = await Location.getLastKnownPositionAsync();
-    if (!location) {
-      return null;
-    }
-
-    return {
-      coords: mapCoordinates(location.coords),
-      timestamp: location.timestamp,
-    };
-  } catch (error) {
-    return null;
-  }
+  return new Promise((resolve) => {
+    Geolocation.getCurrentPosition(
+      (position: GeoPosition) => {
+        const calculatedSpeed = 0;
+        resolve({
+          coords: mapCoordinates(position.coords, calculatedSpeed, position.timestamp),
+          timestamp: position.timestamp,
+        });
+      },
+      (_error: GeoError) => resolve(null),
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 60000,
+      }
+    );
+  });
 };
 
 export const calculateDistance = (
@@ -124,12 +212,32 @@ export const calculateBearing = (
   return ((θ * 180) / Math.PI + 360) % 360;
 };
 
-const mapCoordinates = (coords: Location.LocationObjectCoords): Coordinates => ({
-  latitude: coords.latitude,
-  longitude: coords.longitude,
-  altitude: coords.altitude,
-  accuracy: coords.accuracy,
-  altitudeAccuracy: coords.altitudeAccuracy ?? null,
-  heading: coords.heading,
-  speed: speedFilter.filter(coords.speed, coords.accuracy), // Apply smoothing filter
-});
+const mapCoordinates = (
+  coords: {
+    latitude: number;
+    longitude: number;
+    altitude?: number | null;
+    accuracy?: number;
+    altitudeAccuracy?: number | null;
+    heading?: number | null;
+  },
+  calculatedSpeed: number,
+  timestamp: number
+): Coordinates => {
+  const filteredSpeed = speedFilter.filter(
+    calculatedSpeed,
+    coords.accuracy ?? null,
+    { latitude: coords.latitude, longitude: coords.longitude },
+    timestamp
+  );
+
+  return {
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    altitude: coords.altitude ?? null,
+    accuracy: coords.accuracy ?? null,
+    altitudeAccuracy: coords.altitudeAccuracy ?? null,
+    heading: coords.heading ?? null,
+    speed: filteredSpeed,
+  };
+};

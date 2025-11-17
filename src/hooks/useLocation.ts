@@ -9,8 +9,8 @@ import {
 
 interface UseLocationConfig {
   autoStart?: boolean;
-  distanceInterval?: number;
-  timeInterval?: number;
+  distanceFilter?: number;
+  interval?: number;
 }
 
 interface UseLocationReturn {
@@ -29,7 +29,7 @@ interface UseLocationReturn {
 }
 
 export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn => {
-  const { autoStart = false, distanceInterval, timeInterval } = config;
+  const { autoStart = false, distanceFilter, interval } = config;
 
   const [location, setLocation] = useState<LocationData | null>(null);
   const [permission, setPermission] = useState<PermissionStatus>(PermissionStatus.UNDETERMINED);
@@ -42,14 +42,11 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
 
   useEffect(() => {
     const checkPermissions = async () => {
-      console.log('useLocation: Checking permissions...');
       const status = await checkLocationPermission();
       setPermission(status);
 
       const servicesEnabled = await isLocationEnabled();
       setIsLocationServicesEnabled(servicesEnabled);
-
-      console.log('useLocation: Permission status:', { status, servicesEnabled });
     };
 
     checkPermissions();
@@ -144,14 +141,8 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
         setLocation(lastPosition);
       }
 
-      const subscription = await watchLocation(
+      const subscription = watchLocation(
         (loc) => {
-          console.log('📍 GPS Update:', {
-            accuracy: loc.coords.accuracy?.toFixed(1) + 'm',
-            speed: loc.coords.speed?.toFixed(1) + 'm/s',
-            lat: loc.coords.latitude.toFixed(6),
-            lon: loc.coords.longitude.toFixed(6),
-          });
           setLocation(loc);
           setError(null);
         },
@@ -159,8 +150,8 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
           setError(err);
         },
         {
-          distanceInterval,
-          timeInterval,
+          distanceFilter,
+          interval,
         }
       );
 
@@ -183,7 +174,7 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     } finally {
       setIsLoading(false);
     }
-  }, [permission, distanceInterval, timeInterval]);
+  }, [permission, distanceFilter, interval]);
 
   const stopTracking = useCallback((): void => {
     if (watchSubscription.current) {
@@ -193,7 +184,6 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
     }
   }, []);
 
-  // Auto-start tracking when permission is granted and autoStart is enabled
   useEffect(() => {
     if (
       autoStart &&
@@ -201,7 +191,6 @@ export const useLocation = (config: UseLocationConfig = {}): UseLocationReturn =
       isLocationServicesEnabled &&
       !isTracking
     ) {
-      console.log('useLocation: autoStart enabled, calling startTracking...');
       startTracking();
     }
   }, [autoStart, permission, isLocationServicesEnabled, isTracking, startTracking]);
