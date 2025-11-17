@@ -1,7 +1,7 @@
 import { KalmanFilter } from './kalmanFilter';
 import { EMAFilter } from './emaFilter';
 
-class SpeedFilter {
+export class SpeedFilter {
   private kalmanFilter: KalmanFilter;
   private emaFilter: EMAFilter;
   
